@@ -5,89 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f6f1e7" />
     <title>Zoggle</title>
-    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main id="game" class="game-shell">
-      <header class="game-header">
-        <div>
-          <p class="eyebrow">A quick word hunt</p>
-          <h1>Zoggle</h1>
-        </div>
-        <p class="instructions">
-          Hold, trace neighboring letters, then release. Each tile can be used
-          once per round.
-        </p>
-      </header>
-
-      <section class="stats" aria-label="Round statistics">
-        <div class="stat">
-          <span class="stat-label">Time</span>
-          <strong id="timer-value" class="stat-value">1:00</strong>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Score</span>
-          <strong id="score-value" class="stat-value">0</strong>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Board best</span>
-          <strong id="high-score-value" class="stat-value">0</strong>
-        </div>
-      </section>
-
-      <div class="game-layout">
-        <section class="board-panel" aria-labelledby="board-name">
-          <div class="board-heading">
-            <h2 id="board-name">Board</h2>
-            <p id="status" role="status" aria-live="polite">
-              Loading Webster’s dictionary…
-            </p>
-          </div>
-
-          <div id="board" class="board" role="grid" aria-disabled="true"></div>
-
-          <div class="word-preview" aria-live="polite">
-            <span>Current word</span>
-            <output id="current-word">—</output>
-          </div>
-
-          <button id="retry-load" class="secondary-button" type="button" hidden>
-            Retry dictionary
-          </button>
-
-          <div id="round-actions" class="round-actions" hidden>
-            <p id="round-expired-message" hidden>Time’s up!</p>
-            <div>
-              <button id="restart-board" class="primary-button" type="button">
-                Play again
-              </button>
-              <button
-                id="new-board"
-                class="secondary-button"
-                type="button"
-                hidden
-              >
-                Try a new board
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <aside class="words-panel" aria-labelledby="found-heading">
-          <div class="words-heading">
-            <h2 id="found-heading">Found words</h2>
-            <span id="found-count" aria-label="number of words found">0</span>
-          </div>
-          <ol id="found-words" class="found-words">
-            <li class="empty-words">Your words will appear here.</li>
-          </ol>
-          <p class="scoring-note">
-            3–4 letters: 1 · 5: 2 · 6: 3 · 7: 4 · 8: 11 · 9+: 20
-          </p>
-        </aside>
-      </div>
-    </main>
-
-    <script type="module" src="game.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

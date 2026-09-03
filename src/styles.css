@@ -20,6 +20,10 @@ body {
     #f6f1e7;
 }
 
+#root {
+  min-height: 100vh;
+}
+
 button {
   font: inherit;
 }
