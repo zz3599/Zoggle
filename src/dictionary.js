@@ -28,4 +28,3 @@ export async function loadDictionary({
 
   return dictionaryFromObject(await response.json());
 }
-

@@ -57,4 +57,3 @@ function validateBoards(boards) {
 }
 
 validateBoards(BOARDS);
-

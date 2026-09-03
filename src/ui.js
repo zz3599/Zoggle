@@ -184,4 +184,3 @@ export class GameView {
     this.retryElement.addEventListener("click", handler);
   }
 }
-
