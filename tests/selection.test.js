@@ -3,9 +3,13 @@ import assert from "node:assert/strict";
 
 import { extendPath, SelectionController } from "../src/selection.js";
 
-function createControllerHarness({ enabled = true, isCellAvailable = () => true } = {}) {
+function createControllerHarness({
+  enabled = true,
+  isCellAvailable = () => true,
+} = {}) {
   let targetAtPoint = null;
   let capturedPointer = null;
+  const cells = [];
   const pathChanges = [];
   const submissions = [];
 
@@ -22,7 +26,10 @@ function createControllerHarness({ enabled = true, isCellAvailable = () => true 
     addEventListener() {},
     removeEventListener() {},
     contains(target) {
-      return target?.isCell === true;
+      return target === boardElement || target?.isCell === true;
+    },
+    querySelectorAll() {
+      return cells;
     },
     setPointerCapture(pointerId) {
       capturedPointer = pointerId;
@@ -35,14 +42,27 @@ function createControllerHarness({ enabled = true, isCellAvailable = () => true 
     },
   };
 
-  const cell = (row, col) => {
+  const cell = (
+    row,
+    col,
+    {
+      left = col * 20,
+      top = row * 20,
+      right = left + 10,
+      bottom = top + 10,
+    } = {},
+  ) => {
     const element = {
       isCell: true,
       dataset: { row: String(row), col: String(col) },
       closest() {
         return element;
       },
+      getBoundingClientRect() {
+        return { left, top, right, bottom };
+      },
     };
+    cells.push(element);
     return element;
   };
 
@@ -57,6 +77,7 @@ function createControllerHarness({ enabled = true, isCellAvailable = () => true 
     controller,
     pathChanges,
     submissions,
+    boardElement,
     cell,
     setTargetAtPoint(target) {
       targetAtPoint = target;
@@ -167,6 +188,100 @@ test("SelectionController submits a path built across pointer events", () => {
   assert.deepEqual(harness.pathChanges.at(-1), []);
 });
 
+test("SelectionController rounds a pointer in a board gap to the closest cell", () => {
+  const harness = createControllerHarness();
+  const first = harness.cell(0, 0, {
+    left: 0,
+    top: 0,
+    right: 100,
+    bottom: 100,
+  });
+  harness.cell(0, 1, {
+    left: 110,
+    top: 0,
+    right: 210,
+    bottom: 100,
+  });
+
+  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.setTargetAtPoint(harness.boardElement);
+  harness.controller.handlePointerMove(
+    pointerEvent({ clientX: 108, clientY: 50 }),
+  );
+  assert.deepEqual(harness.controller.path, [
+    { row: 0, col: 0 },
+    { row: 0, col: 1 },
+  ]);
+
+  harness.controller.handlePointerUp(
+    pointerEvent({ clientX: 108, clientY: 50 }),
+  );
+
+  assert.deepEqual(harness.submissions, [[
+    { row: 0, col: 0 },
+    { row: 0, col: 1 },
+  ]]);
+});
+
+test("SelectionController rounds a pointer just outside the board", () => {
+  const harness = createControllerHarness();
+  const first = harness.cell(0, 0);
+  harness.cell(0, 1);
+
+  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.setTargetAtPoint({});
+  harness.controller.handlePointerMove(
+    pointerEvent({ clientX: 25, clientY: -2 }),
+  );
+  assert.deepEqual(harness.controller.path, [
+    { row: 0, col: 0 },
+    { row: 0, col: 1 },
+  ]);
+
+  harness.controller.handlePointerUp(
+    pointerEvent({ clientX: 25, clientY: -2 }),
+  );
+
+  assert.deepEqual(harness.submissions, [[
+    { row: 0, col: 0 },
+    { row: 0, col: 1 },
+  ]]);
+});
+
+test("SelectionController rounds the final pointer position on release", () => {
+  const harness = createControllerHarness();
+  const first = harness.cell(0, 0);
+  harness.cell(0, 1);
+
+  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.setTargetAtPoint(harness.boardElement);
+  harness.controller.handlePointerUp(
+    pointerEvent({ clientX: 18, clientY: 5 }),
+  );
+
+  assert.deepEqual(harness.submissions, [[
+    { row: 0, col: 0 },
+    { row: 0, col: 1 },
+  ]]);
+});
+
+test("SelectionController does not round past an unavailable closest cell", () => {
+  const harness = createControllerHarness({
+    isCellAvailable: ({ row, col }) => row !== 0 || col !== 1,
+  });
+  const first = harness.cell(0, 0);
+  harness.cell(0, 1);
+  harness.cell(0, 2);
+
+  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.setTargetAtPoint(harness.boardElement);
+  harness.controller.handlePointerMove(
+    pointerEvent({ clientX: 18, clientY: 5 }),
+  );
+
+  assert.deepEqual(harness.controller.path, [{ row: 0, col: 0 }]);
+});
+
 test("SelectionController cancels without submitting on Escape or lost capture", () => {
   const harness = createControllerHarness();
   const first = harness.cell(0, 0);
@@ -217,17 +332,19 @@ test("SelectionController does not start from or extend through unavailable cell
   ]]);
 });
 
-test("SelectionController does not submit a prefix released on an unavailable cell", () => {
+test("SelectionController does not submit near an unavailable cell", () => {
   const harness = createControllerHarness({
     isCellAvailable: ({ row, col }) => row !== 0 || col !== 1,
   });
 
-  harness.controller.handlePointerDown(
-    pointerEvent({ target: harness.cell(0, 0) }),
+  const first = harness.cell(0, 0);
+  harness.cell(0, 1);
+
+  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.setTargetAtPoint(harness.boardElement);
+  harness.controller.handlePointerUp(
+    pointerEvent({ clientX: 18, clientY: 5 }),
   );
-  harness.setTargetAtPoint(harness.cell(0, 1));
-  harness.controller.handlePointerMove(pointerEvent());
-  harness.controller.handlePointerUp(pointerEvent());
 
   assert.deepEqual(harness.submissions, []);
   assert.deepEqual(harness.pathChanges.at(-1), []);

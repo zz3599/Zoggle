@@ -71,6 +71,46 @@ function cellFromTarget(boardElement, target) {
   return isCoordinate(coordinate) ? coordinate : null;
 }
 
+function distanceSquaredFromRect(x, y, rect) {
+  const horizontalDistance = Math.max(rect.left - x, 0, x - rect.right);
+  const verticalDistance = Math.max(rect.top - y, 0, y - rect.bottom);
+  return horizontalDistance ** 2 + verticalDistance ** 2;
+}
+
+function closestCellFromPoint(boardElement, x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+
+  let closestCell = null;
+  let closestDistance = Infinity;
+
+  for (const cell of boardElement.querySelectorAll?.(CELL_SELECTOR) ?? []) {
+    if (typeof cell.getBoundingClientRect !== "function") {
+      continue;
+    }
+
+    const distance = distanceSquaredFromRect(
+      x,
+      y,
+      cell.getBoundingClientRect(),
+    );
+    if (Number.isFinite(distance) && distance < closestDistance) {
+      closestCell = cell;
+      closestDistance = distance;
+    }
+  }
+
+  return cellFromTarget(boardElement, closestCell);
+}
+
+function cellFromPoint(boardElement, target, x, y) {
+  return (
+    cellFromTarget(boardElement, target) ??
+    closestCellFromPoint(boardElement, x, y)
+  );
+}
+
 function defaultEnabled() {
   return true;
 }
@@ -156,7 +196,12 @@ export class SelectionController {
       event.clientX,
       event.clientY,
     );
-    const coordinate = cellFromTarget(this.boardElement, target);
+    const coordinate = cellFromPoint(
+      this.boardElement,
+      target,
+      event.clientX,
+      event.clientY,
+    );
     if (!coordinate || !this.isCellAvailable(coordinate)) {
       return;
     }
@@ -177,10 +222,19 @@ export class SelectionController {
       event.clientX,
       event.clientY,
     ) ?? event.target;
-    const releaseCoordinate = cellFromTarget(this.boardElement, target);
+    const releaseCoordinate = cellFromPoint(
+      this.boardElement,
+      target,
+      event.clientX,
+      event.clientY,
+    );
     const releasedOnUnavailableCell =
       releaseCoordinate !== null && !this.isCellAvailable(releaseCoordinate);
-    const submittedPath = this.path.map((position) => ({ ...position }));
+    const completedPath =
+      releaseCoordinate === null || releasedOnUnavailableCell
+        ? this.path
+        : extendPath(this.path, releaseCoordinate);
+    const submittedPath = completedPath.map((position) => ({ ...position }));
     const shouldSubmit =
       this.isEnabled() &&
       !releasedOnUnavailableCell &&
