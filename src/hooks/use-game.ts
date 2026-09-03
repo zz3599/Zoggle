@@ -32,7 +32,7 @@ export interface GameController {
   readonly isSelectionEnabled: () => boolean;
   readonly path: readonly Coordinate[];
   readonly roundKey: number;
-  readonly snapshot: RoundSnapshot | null;
+  readonly snapshot: RoundSnapshot;
   readonly status: StatusMessage;
   readonly usedCells: ReadonlySet<string>;
   readonly onPathChange: (path: readonly Coordinate[]) => void;
@@ -102,23 +102,9 @@ function roundCompleteStatus(score: number): StatusMessage {
 }
 
 export function useGame(
-  dictionary: ReadonlySet<string> | null,
+  dictionary: ReadonlySet<string>,
 ): GameController {
-  const [session, setSession] = useState<GameSession | null>(null);
-  const sessionRef = useRef<GameSession | null>(null);
-  const [path, setPath] = useState<readonly Coordinate[]>([]);
-  const commitSession = useCallback((nextSession: GameSession | null) => {
-    sessionRef.current = nextSession;
-    setSession(nextSession);
-  }, []);
-
-  useEffect(() => {
-    if (!dictionary) {
-      commitSession(null);
-      setPath([]);
-      return;
-    }
-
+  const [session, setSession] = useState<GameSession>(() => {
     const board = boardAt(0);
     const game = new GameState({
       boardId: board.id,
@@ -126,27 +112,31 @@ export function useGame(
       validateWord: validatorFor(dictionary),
       scoreWord,
     });
-    commitSession({
+    return {
       game,
       boardIndex: 0,
       snapshot: game.getSnapshot(),
       roundKey: 0,
       status: READY_STATUS,
-    });
-    setPath([]);
-  }, [commitSession, dictionary]);
+    };
+  });
+  const sessionRef = useRef(session);
+  const [path, setPath] = useState<readonly Coordinate[]>([]);
+  const commitSession = useCallback((nextSession: GameSession) => {
+    sessionRef.current = nextSession;
+    setSession(nextSession);
+  }, []);
 
-  const game = session?.game ?? null;
-  const endsAt = session?.snapshot.endsAt ?? null;
-  const expired = session?.snapshot.expired ?? true;
+  const { game } = session;
+  const { endsAt, expired } = session.snapshot;
 
   useEffect(() => {
-    if (!game || endsAt === null || expired) return;
+    if (expired) return;
 
     const timerId = window.setInterval(() => {
       const snapshot = game.getSnapshot();
       const current = sessionRef.current;
-      if (!current || current.game !== game) return;
+      if (current.game !== game) return;
 
       commitSession({
         ...current,
@@ -162,8 +152,6 @@ export function useGame(
 
   const resetRound = useCallback((advanceBoard: boolean) => {
     const current = sessionRef.current;
-    if (!current) return;
-
     setPath([]);
     const boardIndex = advanceBoard
       ? (current.boardIndex + 1) % BOARDS.length
@@ -183,7 +171,7 @@ export function useGame(
     });
   }, [commitSession]);
 
-  const board = boardAt(session?.boardIndex ?? 0);
+  const board = boardAt(session.boardIndex);
   const currentWord = useMemo(() => {
     if (path.length === 0) return "";
     try {
@@ -195,10 +183,8 @@ export function useGame(
 
   const onSubmit = useCallback((submittedPath: readonly Coordinate[]) => {
     const current = sessionRef.current;
-    if (!current) return;
-
     const currentBoard = boardAt(current.boardIndex);
-    let word = "";
+    let word: string;
     try {
       word = wordFromPath(currentBoard.letters, submittedPath);
     } catch {
@@ -226,21 +212,18 @@ export function useGame(
     return current !== null && !current.game.isExpired();
   }, []);
 
-  const snapshot = session?.snapshot ?? null;
-  const usedCells = useMemo(
-    () => new Set(snapshot?.usedCells ?? []),
-    [snapshot?.usedCells],
-  );
+  const { snapshot } = session;
+  const usedCells = new Set(snapshot.usedCells);
 
   return {
     board,
     currentWord,
-    enabled: snapshot !== null && !snapshot.expired,
+    enabled: !snapshot.expired,
     isSelectionEnabled,
     path,
-    roundKey: session?.roundKey ?? 0,
+    roundKey: session.roundKey,
     snapshot,
-    status: session?.status ?? READY_STATUS,
+    status: session.status,
     usedCells,
     onPathChange: setPath,
     onSubmit,
