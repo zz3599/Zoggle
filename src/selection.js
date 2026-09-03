@@ -77,37 +77,108 @@ function distanceSquaredFromRect(x, y, rect) {
   return horizontalDistance ** 2 + verticalDistance ** 2;
 }
 
-function closestCellFromPoint(boardElement, x, y) {
+/**
+ * Return the cardinal snap lane containing a point relative to the current
+ * tile. Corner gaps are in neither lane, so diagonal moves require an exact
+ * tile hit.
+ */
+function snapAxisFromPoint(cells, current, x, y) {
+  if (!isCoordinate(current)) {
+    return null;
+  }
+
+  let boardLeft = Infinity;
+  let boardTop = Infinity;
+  let boardRight = -Infinity;
+  let boardBottom = -Infinity;
+  let rowTop = Infinity;
+  let rowBottom = -Infinity;
+  let columnLeft = Infinity;
+  let columnRight = -Infinity;
+
+  for (const { coordinate, rect } of cells) {
+    boardLeft = Math.min(boardLeft, rect.left);
+    boardTop = Math.min(boardTop, rect.top);
+    boardRight = Math.max(boardRight, rect.right);
+    boardBottom = Math.max(boardBottom, rect.bottom);
+
+    if (coordinate.row === current.row) {
+      rowTop = Math.min(rowTop, rect.top);
+      rowBottom = Math.max(rowBottom, rect.bottom);
+    }
+    if (coordinate.col === current.col) {
+      columnLeft = Math.min(columnLeft, rect.left);
+      columnRight = Math.max(columnRight, rect.right);
+    }
+  }
+
+  const projectedX = Math.min(Math.max(x, boardLeft), boardRight);
+  const projectedY = Math.min(Math.max(y, boardTop), boardBottom);
+  const inHorizontalLane = projectedY >= rowTop && projectedY <= rowBottom;
+  const inVerticalLane =
+    projectedX >= columnLeft && projectedX <= columnRight;
+
+  if (inHorizontalLane === inVerticalLane) {
+    return null;
+  }
+
+  return inHorizontalLane ? "horizontal" : "vertical";
+}
+
+function closestCellFromPoint(boardElement, x, y, current) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     return null;
   }
 
-  let closestCell = null;
+  const cells = [];
+  for (const cell of boardElement.querySelectorAll?.(CELL_SELECTOR) ?? []) {
+    const coordinate = cellFromTarget(boardElement, cell);
+    const rect = cell.getBoundingClientRect?.();
+    if (
+      !coordinate ||
+      !Number.isFinite(rect?.left) ||
+      !Number.isFinite(rect?.top) ||
+      !Number.isFinite(rect?.right) ||
+      !Number.isFinite(rect?.bottom) ||
+      rect.right <= rect.left ||
+      rect.bottom <= rect.top
+    ) {
+      continue;
+    }
+    cells.push({ coordinate, rect });
+  }
+
+  const snapAxis = snapAxisFromPoint(cells, current, x, y);
+  if (snapAxis === null) {
+    return null;
+  }
+
+  let closestCoordinate = null;
   let closestDistance = Infinity;
 
-  for (const cell of boardElement.querySelectorAll?.(CELL_SELECTOR) ?? []) {
-    if (typeof cell.getBoundingClientRect !== "function") {
+  for (const { coordinate, rect } of cells) {
+    if (
+      (snapAxis === "horizontal"
+        ? coordinate.row !== current.row
+        : coordinate.col !== current.col)
+    ) {
       continue;
     }
 
-    const distance = distanceSquaredFromRect(
-      x,
-      y,
-      cell.getBoundingClientRect(),
-    );
+    const distance = distanceSquaredFromRect(x, y, rect);
     if (Number.isFinite(distance) && distance < closestDistance) {
-      closestCell = cell;
+      closestCoordinate = coordinate;
       closestDistance = distance;
     }
   }
 
-  return cellFromTarget(boardElement, closestCell);
+  return closestCoordinate;
 }
 
-function cellFromPoint(boardElement, target, x, y) {
+function cellFromPoint(boardElement, target, x, y, current) {
   return (
     cellFromTarget(boardElement, target) ??
-    closestCellFromPoint(boardElement, x, y)
+    closestCellFromPoint(boardElement, x, y, current)
   );
 }
 
@@ -201,6 +272,7 @@ export class SelectionController {
       target,
       event.clientX,
       event.clientY,
+      this.path.at(-1),
     );
     if (!coordinate || !this.isCellAvailable(coordinate)) {
       return;
@@ -227,6 +299,7 @@ export class SelectionController {
       target,
       event.clientX,
       event.clientY,
+      this.path.at(-1),
     );
     const releasedOnUnavailableCell =
       releaseCoordinate !== null && !this.isCellAvailable(releaseCoordinate);

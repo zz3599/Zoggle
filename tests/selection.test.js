@@ -206,7 +206,7 @@ test("SelectionController rounds a pointer in a board gap to the closest cell", 
   harness.controller.handlePointerDown(pointerEvent({ target: first }));
   harness.setTargetAtPoint(harness.boardElement);
   harness.controller.handlePointerMove(
-    pointerEvent({ clientX: 108, clientY: 50 }),
+    pointerEvent({ clientX: 108, clientY: 95 }),
   );
   assert.deepEqual(harness.controller.path, [
     { row: 0, col: 0 },
@@ -214,7 +214,7 @@ test("SelectionController rounds a pointer in a board gap to the closest cell", 
   ]);
 
   harness.controller.handlePointerUp(
-    pointerEvent({ clientX: 108, clientY: 50 }),
+    pointerEvent({ clientX: 108, clientY: 95 }),
   );
 
   assert.deepEqual(harness.submissions, [[
@@ -223,29 +223,57 @@ test("SelectionController rounds a pointer in a board gap to the closest cell", 
   ]]);
 });
 
-test("SelectionController rounds a pointer just outside the board", () => {
+test("SelectionController rounds a pointer in a vertical board gap", () => {
   const harness = createControllerHarness();
-  const first = harness.cell(0, 0);
-  harness.cell(0, 1);
+  const first = harness.cell(0, 0, {
+    left: 0,
+    top: 0,
+    right: 100,
+    bottom: 100,
+  });
+  harness.cell(1, 0, {
+    left: 0,
+    top: 110,
+    right: 100,
+    bottom: 210,
+  });
 
   harness.controller.handlePointerDown(pointerEvent({ target: first }));
-  harness.setTargetAtPoint({});
+  harness.setTargetAtPoint(harness.boardElement);
   harness.controller.handlePointerMove(
-    pointerEvent({ clientX: 25, clientY: -2 }),
+    pointerEvent({ clientX: 95, clientY: 108 }),
   );
+
   assert.deepEqual(harness.controller.path, [
     { row: 0, col: 0 },
-    { row: 0, col: 1 },
+    { row: 1, col: 0 },
   ]);
+});
 
-  harness.controller.handlePointerUp(
-    pointerEvent({ clientX: 25, clientY: -2 }),
-  );
+test("SelectionController rounds a pointer just outside the board", () => {
+  for (const [row, col, clientX, clientY] of [
+    [0, 1, 25, -2],
+    [1, 0, -2, 25],
+  ]) {
+    const harness = createControllerHarness();
+    const first = harness.cell(0, 0);
+    harness.cell(row, col);
 
-  assert.deepEqual(harness.submissions, [[
-    { row: 0, col: 0 },
-    { row: 0, col: 1 },
-  ]]);
+    harness.controller.handlePointerDown(pointerEvent({ target: first }));
+    harness.setTargetAtPoint({});
+    harness.controller.handlePointerMove(pointerEvent({ clientX, clientY }));
+    assert.deepEqual(harness.controller.path, [
+      { row: 0, col: 0 },
+      { row, col },
+    ]);
+
+    harness.controller.handlePointerUp(pointerEvent({ clientX, clientY }));
+
+    assert.deepEqual(harness.submissions, [[
+      { row: 0, col: 0 },
+      { row, col },
+    ]]);
+  }
 });
 
 test("SelectionController rounds the final pointer position on release", () => {
@@ -262,6 +290,74 @@ test("SelectionController rounds the final pointer position on release", () => {
   assert.deepEqual(harness.submissions, [[
     { row: 0, col: 0 },
     { row: 0, col: 1 },
+  ]]);
+});
+
+test("SelectionController requires an exact tile hit for diagonal tracing", () => {
+  for (const [clientX, clientY] of [
+    [16, 14],
+    [14, 16],
+    [21, 14],
+    [14, 21],
+    [18, 18],
+  ]) {
+    const harness = createControllerHarness();
+    const first = harness.cell(0, 0);
+    harness.cell(0, 1);
+    harness.cell(1, 0);
+    const diagonal = harness.cell(1, 1);
+
+    harness.controller.handlePointerDown(pointerEvent({ target: first }));
+    harness.setTargetAtPoint(harness.boardElement);
+    harness.controller.handlePointerMove(pointerEvent({ clientX, clientY }));
+
+    assert.deepEqual(harness.controller.path, [{ row: 0, col: 0 }]);
+
+    harness.setTargetAtPoint(diagonal);
+    harness.controller.handlePointerMove(
+      pointerEvent({ clientX: 25, clientY: 25 }),
+    );
+    harness.controller.handlePointerUp(
+      pointerEvent({ clientX: 25, clientY: 25 }),
+    );
+
+    assert.deepEqual(harness.submissions, [[
+      { row: 0, col: 0 },
+      { row: 1, col: 1 },
+    ]]);
+  }
+});
+
+test("SelectionController does not round a diagonal release", () => {
+  const harness = createControllerHarness();
+  const first = harness.cell(0, 0);
+  harness.cell(0, 1);
+  harness.cell(1, 0);
+  harness.cell(1, 1);
+
+  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.setTargetAtPoint(harness.boardElement);
+  harness.controller.handlePointerUp(
+    pointerEvent({ clientX: 16, clientY: 14 }),
+  );
+
+  assert.deepEqual(harness.submissions, [[{ row: 0, col: 0 }]]);
+});
+
+test("SelectionController accepts an exact diagonal tile on release", () => {
+  const harness = createControllerHarness();
+  const first = harness.cell(0, 0);
+  const diagonal = harness.cell(1, 1);
+
+  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.setTargetAtPoint(diagonal);
+  harness.controller.handlePointerUp(
+    pointerEvent({ clientX: 25, clientY: 25 }),
+  );
+
+  assert.deepEqual(harness.submissions, [[
+    { row: 0, col: 0 },
+    { row: 1, col: 1 },
   ]]);
 });
 
