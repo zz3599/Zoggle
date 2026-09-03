@@ -80,6 +80,10 @@ export class GameState {
       return this._rejection("invalid-cells", normalizedWord, submittedAt);
     }
 
+    if (normalizedCells.some((cell) => this._usedCells.has(cell))) {
+      return this._rejection("used-cell", normalizedWord, submittedAt);
+    }
+
     const beforeSubmission = this._snapshotAt(submittedAt);
     const validation = valid === undefined
       ? this._runValidation(normalizedWord, cells, beforeSubmission)
@@ -234,8 +238,13 @@ function normalizeCells(cells) {
 
 function normalizeCell(cell) {
   if (typeof cell === "string") {
-    const key = cell.trim();
-    return key || null;
+    const match = /^(\d+),(\d+)$/.exec(cell.trim());
+    if (!match) return null;
+
+    const row = Number(match[1]);
+    const col = Number(match[2]);
+    if (!Number.isSafeInteger(row) || !Number.isSafeInteger(col)) return null;
+    return `${row},${col}`;
   }
 
   const row = Array.isArray(cell) ? cell[0] : cell?.row;

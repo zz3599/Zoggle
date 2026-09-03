@@ -38,12 +38,14 @@ export class GameView {
 
     this.cells = new Map();
     this.activeCells = new Set();
+    this.usedCells = new Set();
     this.lastFoundWordsKey = null;
   }
 
   renderBoard(board) {
     this.cells.clear();
     this.activeCells.clear();
+    this.usedCells.clear();
     this.lastFoundWordsKey = null;
     this.boardElement.replaceChildren();
     this.boardElement.style.setProperty("--board-size", board.letters.length);
@@ -87,9 +89,9 @@ export class GameView {
     this.highScoreElement.textContent = String(snapshot.highScore);
     this.foundCountElement.textContent = String(snapshot.foundWords.length);
 
-    const usedCells = new Set(snapshot.usedCells);
+    this.usedCells = new Set(snapshot.usedCells);
     for (const [key, cell] of this.cells) {
-      cell.classList.toggle("cell--used", usedCells.has(key));
+      cell.classList.toggle("cell--used", this.usedCells.has(key));
     }
 
     this.renderFoundWords(snapshot.foundWords);
@@ -143,7 +145,9 @@ export class GameView {
   setBoardEnabled(enabled) {
     this.boardElement.setAttribute("aria-disabled", String(!enabled));
     this.boardElement.classList.toggle("board--disabled", !enabled);
-    for (const cell of this.cells.values()) cell.disabled = !enabled;
+    for (const [key, cell] of this.cells) {
+      cell.disabled = !enabled || this.usedCells.has(key);
+    }
   }
 
   setStatus(message, tone = "neutral") {

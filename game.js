@@ -50,6 +50,8 @@ function wordForPath(path) {
 const selection = new SelectionController(view.boardElement, {
   isEnabled: () =>
     dictionary !== null && gameState !== null && !gameState.isExpired(),
+  isCellAvailable: (cell) =>
+    gameState !== null && !gameState.isCellUsed(cell),
   onPathChange(path) {
     view.renderSelection(wordForPath(path), path);
   },
@@ -75,6 +77,7 @@ function submissionMessage(result) {
     "not-in-dictionary": "That word is not in the dictionary.",
     "too-short": "Words need at least three letters.",
     "unsupported-word": "Only lowercase, unhyphenated dictionary words count.",
+    "used-cell": "Each tile can be used only once per round.",
   };
 
   return {

@@ -85,6 +85,7 @@ export class SelectionController {
       onPathChange = noop,
       onSubmit = noop,
       isEnabled = defaultEnabled,
+      isCellAvailable = defaultEnabled,
     } = {},
   ) {
     if (!boardElement?.addEventListener || !boardElement?.contains) {
@@ -93,9 +94,10 @@ export class SelectionController {
     if (
       typeof onPathChange !== "function" ||
       typeof onSubmit !== "function" ||
-      typeof isEnabled !== "function"
+      typeof isEnabled !== "function" ||
+      typeof isCellAvailable !== "function"
     ) {
-      throw new TypeError("selection callbacks and isEnabled must be functions");
+      throw new TypeError("selection callbacks and predicates must be functions");
     }
 
     this.boardElement = boardElement;
@@ -103,6 +105,7 @@ export class SelectionController {
     this.onPathChange = onPathChange;
     this.onSubmit = onSubmit;
     this.isEnabled = isEnabled;
+    this.isCellAvailable = isCellAvailable;
     this.path = [];
     this.pointerId = null;
 
@@ -130,7 +133,7 @@ export class SelectionController {
     }
 
     const coordinate = cellFromTarget(this.boardElement, event.target);
-    if (!coordinate) {
+    if (!coordinate || !this.isCellAvailable(coordinate)) {
       return;
     }
 
@@ -154,7 +157,7 @@ export class SelectionController {
       event.clientY,
     );
     const coordinate = cellFromTarget(this.boardElement, target);
-    if (!coordinate) {
+    if (!coordinate || !this.isCellAvailable(coordinate)) {
       return;
     }
 
@@ -170,8 +173,18 @@ export class SelectionController {
       return;
     }
 
+    const target = this.document.elementFromPoint?.(
+      event.clientX,
+      event.clientY,
+    ) ?? event.target;
+    const releaseCoordinate = cellFromTarget(this.boardElement, target);
+    const releasedOnUnavailableCell =
+      releaseCoordinate !== null && !this.isCellAvailable(releaseCoordinate);
     const submittedPath = this.path.map((position) => ({ ...position }));
-    const shouldSubmit = this.isEnabled() && submittedPath.length > 0;
+    const shouldSubmit =
+      this.isEnabled() &&
+      !releasedOnUnavailableCell &&
+      submittedPath.length > 0;
     this.finishPointer();
     this.setPath([]);
 

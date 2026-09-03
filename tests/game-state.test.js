@@ -109,6 +109,64 @@ test("accepts validated words, rejects invalid and duplicate words, and tracks u
   assert.equal(validated.length, 2, "duplicates do not run validation again");
 });
 
+test("rejects a new word that reuses a cell from an accepted word", () => {
+  const validated = [];
+  const scored = [];
+  const game = new GameState({
+    boardId: "garden",
+    storage: null,
+    now: () => 10,
+    validateWord(word) {
+      validated.push(word);
+      return true;
+    },
+    scoreWord(word) {
+      scored.push(word);
+      return word.length;
+    },
+  });
+
+  const cater = game.submitWord({
+    word: "cater",
+    cells: [
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+      { row: 0, col: 2 },
+      { row: 0, col: 3 },
+      { row: 0, col: 4 },
+    ],
+  });
+  const die = game.submitWord({
+    word: "die",
+    cells: [[2, 3], [1, 3], [0, 3]],
+  });
+
+  assert.equal(cater.accepted, true);
+  assert.equal(die.accepted, false);
+  assert.equal(die.reason, "used-cell");
+  assert.equal(die.points, 0);
+  assert.equal(die.state.score, 5);
+  assert.deepEqual(die.state.foundWords, ["cater"]);
+  assert.deepEqual(die.state.usedCells, ["0,0", "0,1", "0,2", "0,3", "0,4"]);
+  assert.deepEqual(validated, ["cater"], "reused cells reject before validation");
+  assert.deepEqual(scored, ["cater"], "reused cells reject before scoring");
+});
+
+test("canonicalizes string cell coordinates when checking for reuse", () => {
+  const game = new GameState({ boardId: "board-1", storage: null, now: () => 0 });
+
+  game.submitWord({ word: "cat", cells: ["00,03"], valid: true });
+  const reused = game.submitWord({
+    word: "die",
+    cells: [{ row: 0, col: 3 }],
+    valid: true,
+  });
+
+  assert.equal(reused.accepted, false);
+  assert.equal(reused.reason, "used-cell");
+  assert.deepEqual(reused.state.usedCells, ["0,3"]);
+});
+
 test("supports explicit validation and points supplied by browser orchestration", () => {
   const game = new GameState({ boardId: "board-1", storage: null, now: () => 0 });
 

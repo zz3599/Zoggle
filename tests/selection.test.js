@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { extendPath, SelectionController } from "../src/selection.js";
 
-function createControllerHarness({ enabled = true } = {}) {
+function createControllerHarness({ enabled = true, isCellAvailable = () => true } = {}) {
   let targetAtPoint = null;
   let capturedPointer = null;
   const pathChanges = [];
@@ -48,6 +48,7 @@ function createControllerHarness({ enabled = true } = {}) {
 
   const controller = new SelectionController(boardElement, {
     isEnabled: () => enabled,
+    isCellAvailable,
     onPathChange: (path) => pathChanges.push(path),
     onSubmit: (path) => submissions.push(path),
   });
@@ -190,4 +191,44 @@ test("SelectionController does not begin a path while disabled", () => {
 
   assert.deepEqual(harness.pathChanges, []);
   assert.deepEqual(harness.submissions, []);
+});
+
+test("SelectionController does not start from or extend through unavailable cells", () => {
+  const harness = createControllerHarness({
+    isCellAvailable: ({ row, col }) => row !== 0 || col !== 1,
+  });
+  const first = harness.cell(0, 0);
+  const unavailable = harness.cell(0, 1);
+  const next = harness.cell(1, 0);
+
+  harness.controller.handlePointerDown(pointerEvent({ target: unavailable }));
+  assert.deepEqual(harness.pathChanges, []);
+
+  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.setTargetAtPoint(unavailable);
+  harness.controller.handlePointerMove(pointerEvent());
+  harness.setTargetAtPoint(next);
+  harness.controller.handlePointerMove(pointerEvent());
+  harness.controller.handlePointerUp(pointerEvent());
+
+  assert.deepEqual(harness.submissions, [[
+    { row: 0, col: 0 },
+    { row: 1, col: 0 },
+  ]]);
+});
+
+test("SelectionController does not submit a prefix released on an unavailable cell", () => {
+  const harness = createControllerHarness({
+    isCellAvailable: ({ row, col }) => row !== 0 || col !== 1,
+  });
+
+  harness.controller.handlePointerDown(
+    pointerEvent({ target: harness.cell(0, 0) }),
+  );
+  harness.setTargetAtPoint(harness.cell(0, 1));
+  harness.controller.handlePointerMove(pointerEvent());
+  harness.controller.handlePointerUp(pointerEvent());
+
+  assert.deepEqual(harness.submissions, []);
+  assert.deepEqual(harness.pathChanges.at(-1), []);
 });

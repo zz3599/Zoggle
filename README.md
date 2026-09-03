@@ -7,7 +7,7 @@ A boggle (https://en.wikipedia.org/wiki/Boggle) clone. May become something more
    1. Words must be at least 3 letters long and exist in the dictionary.
    2. Each letter after the first must be a horizontal, vertical, or diagonal neighbor of the one before it.
    3. No capitalized (e.g., acronyms) or hyphenated words are allowed.
-   4. No individual letter may be used more than once in a word. UI should make this clear.
+   4. No individual tile may be used more than once in a round. UI should make this clear.
    5. Scoring:
       1. 3-4 letters: 1 point
       2. 5 letters: 2 points
@@ -62,3 +62,6 @@ board start a fresh round. Board high scores are retained in browser storage.
    1. Each board, dynamically or statically generated, is persisted on the server.
    2. Global hiscores for each board.
    3. Compare with friends hiscores for the board.
+3. Bugs:
+   1. Be more lenient when detecting traced path. Right now it's quite exact. "Round" the user's current mouse to the closest tile when tracing their path.
+   2. Proper nouns like names, cities, etc. are not in the dictionary. In the canonical example, "RENO" should be accepted.
