@@ -1,7 +1,9 @@
+import type { BoardDefinition } from "./types";
+
 export const BOARD_SIZE = 6;
 export const ROUND_SECONDS = 60;
 
-const board = (id, rows) => ({
+const board = (id: string, rows: readonly string[]): BoardDefinition => ({
   id,
   letters: rows.map((row) => [...row]),
 });
@@ -33,8 +35,8 @@ export const BOARDS = [
   ]),
 ];
 
-function validateBoards(boards) {
-  const ids = new Set();
+function validateBoards(boards: readonly BoardDefinition[]) {
+  const ids = new Set<string>();
 
   for (const candidate of boards) {
     if (ids.has(candidate.id)) {

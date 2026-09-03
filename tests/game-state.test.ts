@@ -7,13 +7,16 @@ import {
   createGameState,
   highScoreStorageKey,
   scoreForWord,
-} from "../src/game-state.js";
+} from "../src/game-state";
+import type { StorageAdapter } from "../src/game-state";
 
-function memoryStorage(initialEntries = []) {
-  const entries = new Map(initialEntries);
+function memoryStorage(
+  initialEntries: Iterable<readonly [string, string]> = [],
+): StorageAdapter & { readonly entries: Map<string, string> } {
+  const entries = new Map<string, string>(initialEntries);
   return {
     getItem(key) {
-      return entries.has(key) ? entries.get(key) : null;
+      return entries.get(key) ?? null;
     },
     setItem(key, value) {
       entries.set(key, value);
@@ -68,7 +71,11 @@ test("starts a configurable round and expires exactly at its deadline", () => {
 });
 
 test("accepts validated words, rejects invalid and duplicate words, and tracks used cells", () => {
-  const validated = [];
+  const validated: Array<{
+    readonly word: string;
+    readonly cells: readonly unknown[];
+    readonly score: number;
+  }> = [];
   const game = new GameState({
     boardId: "board-1",
     storage: null,
@@ -110,8 +117,8 @@ test("accepts validated words, rejects invalid and duplicate words, and tracks u
 });
 
 test("rejects a new word that reuses a cell from an accepted word", () => {
-  const validated = [];
-  const scored = [];
+  const validated: string[] = [];
+  const scored: string[] = [];
   const game = new GameState({
     boardId: "garden",
     storage: null,

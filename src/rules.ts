@@ -1,14 +1,17 @@
-function isCoordinate(position) {
+import type { Coordinate, LetterGrid } from "./types";
+
+function isCoordinate(position: unknown): position is Coordinate {
+  const candidate = position as Partial<Coordinate> | null;
   return (
-    position !== null &&
-    typeof position === "object" &&
-    Number.isInteger(position.row) &&
-    Number.isInteger(position.col)
+    candidate !== null &&
+    typeof candidate === "object" &&
+    Number.isInteger(candidate.row) &&
+    Number.isInteger(candidate.col)
   );
 }
 
 /** Return whether two different cells touch horizontally, vertically, or diagonally. */
-export function areAdjacent(first, second) {
+export function areAdjacent(first: unknown, second: unknown): boolean {
   if (!isCoordinate(first) || !isCoordinate(second)) {
     return false;
   }
@@ -24,7 +27,10 @@ export function areAdjacent(first, second) {
 }
 
 /** Return whether a coordinate identifies a cell on the supplied board. */
-export function isInBounds(board, position) {
+export function isInBounds(
+  board: LetterGrid,
+  position: unknown,
+): position is Coordinate {
   return (
     Array.isArray(board) &&
     isCoordinate(position) &&
@@ -37,7 +43,10 @@ export function isInBounds(board, position) {
 }
 
 /** Validate a non-empty path without allowing a cell to be used twice. */
-export function isValidPath(board, path) {
+export function isValidPath(
+  board: LetterGrid,
+  path: unknown,
+): path is readonly Coordinate[] {
   if (!Array.isArray(path) || path.length === 0) {
     return false;
   }
@@ -66,7 +75,7 @@ export function isValidPath(board, path) {
 }
 
 /** Build the lowercase dictionary word represented by a valid board path. */
-export function wordFromPath(board, path) {
+export function wordFromPath(board: LetterGrid, path: readonly Coordinate[]): string {
   if (!isValidPath(board, path)) {
     throw new RangeError(
       "A word path must contain unique, adjacent cells within the board.",
@@ -74,16 +83,20 @@ export function wordFromPath(board, path) {
   }
 
   return path
-    .map(({ row, col }) => String(board[row][col]).toLowerCase())
+    .map(({ row, col }) => String(board[row]![col]).toLowerCase())
     .join("");
 }
 
-function collectionHas(collection, word) {
+function collectionHas(collection: unknown, word: string): boolean {
   if (collection === null || collection === undefined) {
     return false;
   }
 
-  if (typeof collection.has === "function") {
+  if (
+    typeof collection === "object" &&
+    "has" in collection &&
+    typeof collection.has === "function"
+  ) {
     return collection.has(word);
   }
 
@@ -99,7 +112,11 @@ function collectionHas(collection, word) {
 }
 
 /** Check spelling, length, dictionary membership, and prior submissions. */
-export function isEligibleWord(word, dictionary, submittedWords = new Set()) {
+export function isEligibleWord(
+  word: unknown,
+  dictionary: unknown,
+  submittedWords: unknown = new Set<string>(),
+): boolean {
   return (
     typeof word === "string" &&
     /^[a-z]{3,}$/.test(word) &&
@@ -109,7 +126,7 @@ export function isEligibleWord(word, dictionary, submittedWords = new Set()) {
 }
 
 /** Score a word using the bands defined in the gameplay specification. */
-export function scoreWord(word) {
+export function scoreWord(word: unknown): number {
   const length = typeof word === "string" ? word.length : 0;
 
   if (length < 3) return 0;

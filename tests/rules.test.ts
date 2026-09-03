@@ -8,7 +8,7 @@ import {
   isValidPath,
   scoreWord,
   wordFromPath,
-} from "../src/rules.js";
+} from "../src/rules";
 
 const board = [
   ["C", "A", "T"],
