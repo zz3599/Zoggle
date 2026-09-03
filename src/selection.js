@@ -110,9 +110,14 @@ export class SelectionController {
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
     this.handlePointerCancel = this.handlePointerCancel.bind(this);
+    this.handleLostPointerCapture = this.handleLostPointerCapture.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
 
     boardElement.addEventListener("pointerdown", this.handlePointerDown);
+    boardElement.addEventListener(
+      "lostpointercapture",
+      this.handleLostPointerCapture,
+    );
     this.document.addEventListener("pointermove", this.handlePointerMove);
     this.document.addEventListener("pointerup", this.handlePointerUp);
     this.document.addEventListener("pointercancel", this.handlePointerCancel);
@@ -181,6 +186,12 @@ export class SelectionController {
     }
   }
 
+  handleLostPointerCapture(event) {
+    if (event.pointerId === this.pointerId) {
+      this.cancel();
+    }
+  }
+
   handleKeyDown(event) {
     if (event.key === "Escape" && this.pointerId !== null) {
       event.preventDefault();
@@ -222,6 +233,10 @@ export class SelectionController {
   destroy() {
     this.cancel();
     this.boardElement.removeEventListener("pointerdown", this.handlePointerDown);
+    this.boardElement.removeEventListener(
+      "lostpointercapture",
+      this.handleLostPointerCapture,
+    );
     this.document.removeEventListener("pointermove", this.handlePointerMove);
     this.document.removeEventListener("pointerup", this.handlePointerUp);
     this.document.removeEventListener("pointercancel", this.handlePointerCancel);
