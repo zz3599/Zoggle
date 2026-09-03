@@ -107,10 +107,14 @@ export class GameState {
     for (const cell of normalizedCells) this._usedCells.add(cell);
     this._score += awardedPoints;
 
-    if (this._score > this._highScore) {
+    const latestHighScore = this._readHighScore(this._boardId);
+
+    if (this._score > latestHighScore) {
       this._highScore = this._score;
       this._knownHighScores.set(this._boardId, this._highScore);
       this._writeHighScore(this._boardId, this._highScore);
+    } else {
+      this._highScore = latestHighScore;
     }
 
     return {

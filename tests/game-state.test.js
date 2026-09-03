@@ -204,6 +204,18 @@ test("persists high scores per board and ignores corrupt stored values", () => {
   assert.equal(new GameState({ boardId: "broken", storage, now: () => 0 }).getSnapshot().highScore, 0);
 });
 
+test("does not overwrite a newer high score from another game instance", () => {
+  const storage = memoryStorage();
+  const firstTab = new GameState({ boardId: "shared", storage, now: () => 0 });
+  const staleTab = new GameState({ boardId: "shared", storage, now: () => 0 });
+
+  firstTab.submitWord({ word: "champion", valid: true, points: 20 });
+  const result = staleTab.submitWord({ word: "cat", valid: true, points: 1 });
+
+  assert.equal(result.state.highScore, 20);
+  assert.equal(storage.entries.get(highScoreStorageKey("shared")), "20");
+});
+
 test("continues with in-memory high scores when storage throws", () => {
   const unavailableStorage = {
     getItem() {
