@@ -1,17 +1,19 @@
-import { areAdjacent } from "./rules.js";
+import { areAdjacent } from "./rules";
+import type { Coordinate } from "./types";
 
 const CELL_SELECTOR = "[data-row][data-col]";
 
-function isCoordinate(value) {
+function isCoordinate(value: unknown): value is Coordinate {
+  const candidate = value as Partial<Coordinate> | null;
   return (
-    value !== null &&
-    typeof value === "object" &&
-    Number.isInteger(value.row) &&
-    Number.isInteger(value.col)
+    candidate !== null &&
+    typeof candidate === "object" &&
+    Number.isInteger(candidate.row) &&
+    Number.isInteger(candidate.col)
   );
 }
 
-function isSameCell(first, second) {
+function isSameCell(first: Coordinate, second: Coordinate): boolean {
   return first.row === second.row && first.col === second.col;
 }
 
@@ -22,7 +24,10 @@ function isSameCell(first, second) {
  * before the current one removes the current cell, which makes correcting a
  * drag feel natural. All other moves leave the path unchanged.
  */
-export function extendPath(path, candidate) {
+export function extendPath(
+  path: readonly Coordinate[],
+  candidate: unknown,
+): readonly Coordinate[] {
   if (!Array.isArray(path)) {
     throw new TypeError("path must be an array");
   }
@@ -57,21 +62,40 @@ export function extendPath(path, candidate) {
   return [...path, { row: candidate.row, col: candidate.col }];
 }
 
-function cellFromTarget(boardElement, target) {
-  const cell = target?.closest?.(CELL_SELECTOR);
+interface ClosestTarget {
+  closest?(selector: string): Element | null;
+}
+
+interface CellGeometry {
+  readonly coordinate: Coordinate;
+  readonly rect: Pick<DOMRect, "left" | "top" | "right" | "bottom">;
+}
+
+type SnapAxis = "horizontal" | "vertical";
+
+function cellFromTarget(
+  boardElement: HTMLElement,
+  target: EventTarget | null | undefined,
+): Coordinate | null {
+  const cell = (target as ClosestTarget | null)?.closest?.(CELL_SELECTOR);
   if (!cell || !boardElement.contains(cell)) {
     return null;
   }
 
+  const element = cell as HTMLElement;
   const coordinate = {
-    row: Number(cell.dataset.row),
-    col: Number(cell.dataset.col),
+    row: Number(element.dataset.row),
+    col: Number(element.dataset.col),
   };
 
   return isCoordinate(coordinate) ? coordinate : null;
 }
 
-function distanceSquaredFromRect(x, y, rect) {
+function distanceSquaredFromRect(
+  x: number,
+  y: number,
+  rect: CellGeometry["rect"],
+): number {
   const horizontalDistance = Math.max(rect.left - x, 0, x - rect.right);
   const verticalDistance = Math.max(rect.top - y, 0, y - rect.bottom);
   return horizontalDistance ** 2 + verticalDistance ** 2;
@@ -82,7 +106,12 @@ function distanceSquaredFromRect(x, y, rect) {
  * tile. Corner gaps are in neither lane, so diagonal moves require an exact
  * tile hit.
  */
-function snapAxisFromPoint(cells, current, x, y) {
+function snapAxisFromPoint(
+  cells: readonly CellGeometry[],
+  current: Coordinate | undefined,
+  x: number,
+  y: number,
+): SnapAxis | null {
   if (!isCoordinate(current)) {
     return null;
   }
@@ -125,13 +154,18 @@ function snapAxisFromPoint(cells, current, x, y) {
   return inHorizontalLane ? "horizontal" : "vertical";
 }
 
-function closestCellFromPoint(boardElement, x, y, current) {
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+function closestCellFromPoint(
+  boardElement: HTMLElement,
+  x: number,
+  y: number,
+  current: Coordinate | undefined,
+): Coordinate | null {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !isCoordinate(current)) {
     return null;
   }
 
-  const cells = [];
-  for (const cell of boardElement.querySelectorAll?.(CELL_SELECTOR) ?? []) {
+  const cells: CellGeometry[] = [];
+  for (const cell of boardElement.querySelectorAll<HTMLElement>(CELL_SELECTOR)) {
     const coordinate = cellFromTarget(boardElement, cell);
     const rect = cell.getBoundingClientRect?.();
     if (
@@ -175,29 +209,51 @@ function closestCellFromPoint(boardElement, x, y, current) {
   return closestCoordinate;
 }
 
-function cellFromPoint(boardElement, target, x, y, current) {
+function cellFromPoint(
+  boardElement: HTMLElement,
+  target: EventTarget | null | undefined,
+  x: number,
+  y: number,
+  current: Coordinate | undefined,
+): Coordinate | null {
   return (
     cellFromTarget(boardElement, target) ??
     closestCellFromPoint(boardElement, x, y, current)
   );
 }
 
-function defaultEnabled() {
+function defaultEnabled(): boolean {
   return true;
 }
 
 function noop() {}
 
+export interface SelectionControllerOptions {
+  readonly onPathChange?: (path: readonly Coordinate[]) => void;
+  readonly onSubmit?: (path: readonly Coordinate[]) => void;
+  readonly isEnabled?: () => boolean;
+  readonly isCellAvailable?: (coordinate: Coordinate) => boolean;
+}
+
 /** Manage pointer-drag word selection for a board element. */
 export class SelectionController {
+  private readonly boardElement: HTMLElement;
+  private readonly document: Document;
+  private readonly onPathChange: (path: readonly Coordinate[]) => void;
+  private readonly onSubmit: (path: readonly Coordinate[]) => void;
+  private readonly isEnabled: () => boolean;
+  private readonly isCellAvailable: (coordinate: Coordinate) => boolean;
+  path: readonly Coordinate[] = [];
+  private pointerId: number | null = null;
+
   constructor(
-    boardElement,
+    boardElement: HTMLElement,
     {
       onPathChange = noop,
       onSubmit = noop,
       isEnabled = defaultEnabled,
       isCellAvailable = defaultEnabled,
-    } = {},
+    }: SelectionControllerOptions = {},
   ) {
     if (!boardElement?.addEventListener || !boardElement?.contains) {
       throw new TypeError("boardElement must be a DOM element");
@@ -217,9 +273,6 @@ export class SelectionController {
     this.onSubmit = onSubmit;
     this.isEnabled = isEnabled;
     this.isCellAvailable = isCellAvailable;
-    this.path = [];
-    this.pointerId = null;
-
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
@@ -238,7 +291,7 @@ export class SelectionController {
     this.document.addEventListener("keydown", this.handleKeyDown);
   }
 
-  handlePointerDown(event) {
+  handlePointerDown(event: PointerEvent): void {
     if (event.button !== 0 || this.pointerId !== null || !this.isEnabled()) {
       return;
     }
@@ -254,7 +307,7 @@ export class SelectionController {
     this.setPath(extendPath([], coordinate));
   }
 
-  handlePointerMove(event) {
+  handlePointerMove(event: PointerEvent): void {
     if (event.pointerId !== this.pointerId) {
       return;
     }
@@ -285,7 +338,7 @@ export class SelectionController {
     }
   }
 
-  handlePointerUp(event) {
+  handlePointerUp(event: PointerEvent): void {
     if (event.pointerId !== this.pointerId) {
       return;
     }
@@ -320,31 +373,31 @@ export class SelectionController {
     }
   }
 
-  handlePointerCancel(event) {
+  handlePointerCancel(event: PointerEvent): void {
     if (event.pointerId === this.pointerId) {
       this.cancel();
     }
   }
 
-  handleLostPointerCapture(event) {
+  handleLostPointerCapture(event: PointerEvent): void {
     if (event.pointerId === this.pointerId) {
       this.cancel();
     }
   }
 
-  handleKeyDown(event) {
+  handleKeyDown(event: KeyboardEvent): void {
     if (event.key === "Escape" && this.pointerId !== null) {
       event.preventDefault();
       this.cancel();
     }
   }
 
-  setPath(path) {
+  private setPath(path: readonly Coordinate[]): void {
     this.path = path;
     this.onPathChange(path.map((position) => ({ ...position })));
   }
 
-  finishPointer() {
+  private finishPointer(): void {
     const pointerId = this.pointerId;
     this.pointerId = null;
 
@@ -361,7 +414,7 @@ export class SelectionController {
     }
   }
 
-  cancel() {
+  cancel(): void {
     if (this.pointerId === null && this.path.length === 0) {
       return;
     }
@@ -370,7 +423,7 @@ export class SelectionController {
     this.setPath([]);
   }
 
-  destroy() {
+  destroy(): void {
     this.cancel();
     this.boardElement.removeEventListener("pointerdown", this.handlePointerDown);
     this.boardElement.removeEventListener(

@@ -1,17 +1,23 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { extendPath, SelectionController } from "../src/selection.js";
+import { extendPath, SelectionController } from "../src/selection";
+import type { Coordinate } from "../src/types";
+
+interface HarnessOptions {
+  readonly enabled?: boolean;
+  readonly isCellAvailable?: (coordinate: Coordinate) => boolean;
+}
 
 function createControllerHarness({
   enabled = true,
   isCellAvailable = () => true,
-} = {}) {
-  let targetAtPoint = null;
-  let capturedPointer = null;
-  const cells = [];
-  const pathChanges = [];
-  const submissions = [];
+}: HarnessOptions = {}) {
+  let targetAtPoint: unknown = null;
+  let capturedPointer: number | null = null;
+  const cells: HTMLElement[] = [];
+  const pathChanges: Array<readonly Coordinate[]> = [];
+  const submissions: Array<readonly Coordinate[]> = [];
 
   const documentRef = {
     addEventListener() {},
@@ -19,39 +25,39 @@ function createControllerHarness({
     elementFromPoint() {
       return targetAtPoint;
     },
-  };
+  } as unknown as Document;
 
   const boardElement = {
     ownerDocument: documentRef,
     addEventListener() {},
     removeEventListener() {},
-    contains(target) {
+    contains(target: { readonly isCell?: boolean } | null) {
       return target === boardElement || target?.isCell === true;
     },
     querySelectorAll() {
       return cells;
     },
-    setPointerCapture(pointerId) {
+    setPointerCapture(pointerId: number) {
       capturedPointer = pointerId;
     },
-    hasPointerCapture(pointerId) {
+    hasPointerCapture(pointerId: number) {
       return capturedPointer === pointerId;
     },
     releasePointerCapture() {
       capturedPointer = null;
     },
-  };
+  } as unknown as HTMLElement;
 
   const cell = (
-    row,
-    col,
+    row: number,
+    col: number,
     {
       left = col * 20,
       top = row * 20,
       right = left + 10,
       bottom = top + 10,
-    } = {},
-  ) => {
+    }: Partial<Pick<DOMRect, "left" | "top" | "right" | "bottom">> = {},
+  ): HTMLElement => {
     const element = {
       isCell: true,
       dataset: { row: String(row), col: String(col) },
@@ -61,7 +67,7 @@ function createControllerHarness({
       getBoundingClientRect() {
         return { left, top, right, bottom };
       },
-    };
+    } as unknown as HTMLElement;
     cells.push(element);
     return element;
   };
@@ -79,13 +85,13 @@ function createControllerHarness({
     submissions,
     boardElement,
     cell,
-    setTargetAtPoint(target) {
+    setTargetAtPoint(target: unknown) {
       targetAtPoint = target;
     },
   };
 }
 
-function pointerEvent(overrides = {}) {
+function pointerEvent(overrides: Partial<PointerEvent> = {}): PointerEvent {
   return {
     button: 0,
     pointerId: 7,
@@ -93,7 +99,7 @@ function pointerEvent(overrides = {}) {
     clientY: 10,
     preventDefault() {},
     ...overrides,
-  };
+  } as PointerEvent;
 }
 
 test("extendPath starts a new path without retaining the candidate object", () => {
@@ -168,6 +174,7 @@ test("extendPath ignores malformed candidates and rejects a non-array path", () 
 
   assert.equal(extendPath(path, { row: 1.5, col: 1 }), path);
   assert.equal(extendPath(path, null), path);
+  // @ts-expect-error Exercise the runtime guard for JavaScript callers.
   assert.throws(() => extendPath(null, { row: 0, col: 0 }), /path/);
 });
 
@@ -251,10 +258,12 @@ test("SelectionController rounds a pointer in a vertical board gap", () => {
 });
 
 test("SelectionController rounds a pointer just outside the board", () => {
-  for (const [row, col, clientX, clientY] of [
+  const cases: ReadonlyArray<readonly [number, number, number, number]> = [
     [0, 1, 25, -2],
     [1, 0, -2, 25],
-  ]) {
+  ];
+
+  for (const [row, col, clientX, clientY] of cases) {
     const harness = createControllerHarness();
     const first = harness.cell(0, 0);
     harness.cell(row, col);
@@ -383,7 +392,10 @@ test("SelectionController cancels without submitting on Escape or lost capture",
   const first = harness.cell(0, 0);
 
   harness.controller.handlePointerDown(pointerEvent({ target: first }));
-  harness.controller.handleKeyDown({ key: "Escape", preventDefault() {} });
+  harness.controller.handleKeyDown({
+    key: "Escape",
+    preventDefault() {},
+  } as KeyboardEvent);
   assert.deepEqual(harness.submissions, []);
   assert.deepEqual(harness.pathChanges.at(-1), []);
 
