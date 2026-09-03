@@ -56,6 +56,9 @@ three tiles in the top row spell `CAT` and provide a quick scoring check. After
 60 seconds, verify that both replaying the current board and moving to a new
 board start a fresh round. Board high scores are retained in browser storage.
 
+## Coding style
+Follow https://www.conventionalcommits.org/en/v1.0.0/ for commit messages. Each commit should be small and do one specific thing.
+
 ## Backlog
 1. Dynamically generated boards.
 2. For the initial prototype, everything is on the client. If we do add server support, we could add things like:
