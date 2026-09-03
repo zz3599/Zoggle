@@ -30,6 +30,32 @@ Start with https://github.com/matthewreagan/WebstersEnglishDictionary. Download 
 1. Clear and uncluttered UI for the current timer, current score, all-time high score for this board, current board state (letters already part of words should be highlighted differently), already selected words.
 2. Keep the page clean otherwise.
 
+## Run the tests
+
+The tests use Node's built-in test runner, so there are no packages to install.
+
+```sh
+npm test
+```
+
+## Playtest locally
+
+Start a local web server from the repository root:
+
+```sh
+npm start
+```
+
+Then visit [http://localhost:8000](http://localhost:8000). The page must be
+served over HTTP so its JavaScript modules and dictionary asset can load. The
+dictionary is about 22 MB, so the first load can take a moment.
+
+Hold the primary mouse button (or a finger on a touch screen), trace through
+neighboring tiles, and release to submit. On the initial garden board, the first
+three tiles in the top row spell `CAT` and provide a quick scoring check. After
+60 seconds, verify that both replaying the current board and moving to a new
+board start a fresh round. Board high scores are retained in browser storage.
+
 ## Backlog
 1. Dynamically generated boards.
 2. For the initial prototype, everything is on the client. If we do add server support, we could add things like:
