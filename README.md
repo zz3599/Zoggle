@@ -17,7 +17,8 @@ A boggle (https://en.wikipedia.org/wiki/Boggle) clone. May become something more
       6. 9+ letters: 20 points  
    6. Letters selected should be based on mouse hold -> path -> mouse release. All letters on the path will be checked for valid word.
    7. Score updated after each valid word selected.
-3. At timer expiration, user can restart the game on the current board, or use a new board.
+3. The user can play the current board again at any time. At timer expiration,
+   they can also start a new board.
 
 ## Dictionary used
 Start with https://github.com/matthewreagan/WebstersEnglishDictionary. Download the dictionary.json file and store it as an asset
@@ -52,9 +53,10 @@ dictionary is about 22 MB, so the first load can take a moment.
 
 Hold the primary mouse button (or a finger on a touch screen), trace through
 neighboring tiles, and release to submit. On the initial garden board, the first
-three tiles in the top row spell `CAT` and provide a quick scoring check. After
-60 seconds, verify that both replaying the current board and moving to a new
-board start a fresh round. Board high scores are retained in browser storage.
+three tiles in the top row spell `CAT` and provide a quick scoring check. Before
+time runs out, select Play again and verify that the current board starts a
+fresh 60-second round. After time expires, verify that moving to a new board
+also starts a fresh round. Board high scores are retained in browser storage.
 
 ## Coding style
 Follow https://www.conventionalcommits.org/en/v1.0.0/ for commit messages. Each commit should be small and do one specific thing.

@@ -32,6 +32,10 @@ export class GameView {
     this.foundWordsElement = requiredElement(documentRef, "#found-words");
     this.foundCountElement = requiredElement(documentRef, "#found-count");
     this.roundActionsElement = requiredElement(documentRef, "#round-actions");
+    this.roundExpiredMessageElement = requiredElement(
+      documentRef,
+      "#round-expired-message",
+    );
     this.retryElement = requiredElement(documentRef, "#retry-load");
     this.restartElement = requiredElement(documentRef, "#restart-board");
     this.newBoardElement = requiredElement(documentRef, "#new-board");
@@ -96,7 +100,9 @@ export class GameView {
 
     this.renderFoundWords(snapshot.foundWords);
     this.setBoardEnabled(!snapshot.expired);
-    this.roundActionsElement.hidden = !snapshot.expired;
+    this.roundActionsElement.hidden = false;
+    this.roundExpiredMessageElement.hidden = !snapshot.expired;
+    this.newBoardElement.hidden = !snapshot.expired;
   }
 
   renderFoundWords(foundWords) {

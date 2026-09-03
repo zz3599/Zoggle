@@ -56,12 +56,17 @@
           </button>
 
           <div id="round-actions" class="round-actions" hidden>
-            <p>Time’s up!</p>
+            <p id="round-expired-message" hidden>Time’s up!</p>
             <div>
               <button id="restart-board" class="primary-button" type="button">
-                Play this board again
+                Play again
               </button>
-              <button id="new-board" class="secondary-button" type="button">
+              <button
+                id="new-board"
+                class="secondary-button"
+                type="button"
+                hidden
+              >
                 Try a new board
               </button>
             </div>
