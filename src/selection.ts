@@ -20,9 +20,8 @@ function isSameCell(first: Coordinate, second: Coordinate): boolean {
 /**
  * Return the path produced by moving over candidate without mutating path.
  *
- * A neighboring, unused cell extends the path. Moving to the cell immediately
- * before the current one removes the current cell, which makes correcting a
- * drag feel natural. All other moves leave the path unchanged.
+ * A neighboring, unused cell extends the path. Once a cell has been added,
+ * moving over it again leaves the path unchanged.
  */
 export function extendPath(
   path: readonly Coordinate[],
@@ -44,11 +43,6 @@ export function extendPath(
   const current = path.at(-1);
   if (!isCoordinate(current) || isSameCell(current, candidate)) {
     return path;
-  }
-
-  const predecessor = path.at(-2);
-  if (predecessor && isSameCell(predecessor, candidate)) {
-    return path.slice(0, -1);
   }
 
   if (

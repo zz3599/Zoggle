@@ -133,7 +133,7 @@ test("extendPath ignores the current cell, distant cells, and visited cells", ()
   assert.equal(extendPath(path, { row: 0, col: 0 }), path);
 });
 
-test("extendPath backtracks when moving to the immediate predecessor", () => {
+test("extendPath does not remove a cell when moving to its predecessor", () => {
   const path = [
     { row: 0, col: 0 },
     { row: 0, col: 1 },
@@ -142,30 +142,23 @@ test("extendPath backtracks when moving to the immediate predecessor", () => {
 
   const result = extendPath(path, { row: 0, col: 1 });
 
-  assert.deepEqual(result, [
-    { row: 0, col: 0 },
-    { row: 0, col: 1 },
-  ]);
-  assert.deepEqual(path, [
-    { row: 0, col: 0 },
-    { row: 0, col: 1 },
-    { row: 1, col: 1 },
-  ]);
+  assert.equal(result, path);
 });
 
-test("extendPath permits a different branch after backtracking", () => {
-  const original = [
-    { row: 0, col: 0 },
-    { row: 0, col: 1 },
-    { row: 1, col: 1 },
+test("extendPath extends from the last cell after revisiting a predecessor", () => {
+  const path = [
+    { row: 3, col: 3 },
+    { row: 3, col: 4 },
+    { row: 3, col: 5 },
   ];
-  const backtracked = extendPath(original, { row: 0, col: 1 });
-  const branched = extendPath(backtracked, { row: 0, col: 2 });
+  const revisited = extendPath(path, { row: 3, col: 4 });
+  const extended = extendPath(revisited, { row: 4, col: 4 });
 
-  assert.deepEqual(branched, [
-    { row: 0, col: 0 },
-    { row: 0, col: 1 },
-    { row: 0, col: 2 },
+  assert.deepEqual(extended, [
+    { row: 3, col: 3 },
+    { row: 3, col: 4 },
+    { row: 3, col: 5 },
+    { row: 4, col: 4 },
   ]);
 });
 
@@ -193,6 +186,28 @@ test("SelectionController submits a path built across pointer events", () => {
     { row: 0, col: 1 },
   ]]);
   assert.deepEqual(harness.pathChanges.at(-1), []);
+});
+
+test("SelectionController keeps SENT selected when crossing back over E", () => {
+  const harness = createControllerHarness();
+  const s = harness.cell(3, 3);
+  const e = harness.cell(3, 4);
+  const n = harness.cell(3, 5);
+  const t = harness.cell(4, 4);
+
+  harness.controller.handlePointerDown(pointerEvent({ target: s }));
+  for (const cell of [e, n, e, t]) {
+    harness.setTargetAtPoint(cell);
+    harness.controller.handlePointerMove(pointerEvent());
+  }
+  harness.controller.handlePointerUp(pointerEvent({ target: t }));
+
+  assert.deepEqual(harness.submissions, [[
+    { row: 3, col: 3 },
+    { row: 3, col: 4 },
+    { row: 3, col: 5 },
+    { row: 4, col: 4 },
+  ]]);
 });
 
 test("SelectionController rounds a pointer in a board gap to the closest cell", () => {
