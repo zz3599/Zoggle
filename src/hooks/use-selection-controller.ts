@@ -1,7 +1,7 @@
 import {
   useCallback,
-  useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useRef,
   type RefObject,
 } from "react";
@@ -12,6 +12,7 @@ import type { Coordinate } from "../types";
 interface UseSelectionControllerOptions {
   readonly boardRef: RefObject<HTMLElement | null>;
   readonly enabled: boolean;
+  readonly isEnabled: () => boolean;
   readonly isCellAvailable: (coordinate: Coordinate) => boolean;
   readonly onPathChange: (path: readonly Coordinate[]) => void;
   readonly onSubmit: (path: readonly Coordinate[]) => void;
@@ -22,18 +23,19 @@ interface UseSelectionControllerOptions {
 export function useSelectionController({
   boardRef,
   enabled,
+  isEnabled,
   isCellAvailable,
   onPathChange,
   onSubmit,
   resetKey,
 }: UseSelectionControllerOptions): () => void {
   const controllerRef = useRef<SelectionController>(null);
-  const getEnabled = useEffectEvent(() => enabled);
+  const getEnabled = useEffectEvent(() => enabled && isEnabled());
   const checkCellAvailable = useEffectEvent(isCellAvailable);
   const notifyPathChange = useEffectEvent(onPathChange);
   const submit = useEffectEvent(onSubmit);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const boardElement = boardRef.current;
     if (!boardElement) return;
 
@@ -51,7 +53,7 @@ export function useSelectionController({
     };
   }, [boardRef, resetKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!enabled) controllerRef.current?.cancel();
   }, [enabled]);
 

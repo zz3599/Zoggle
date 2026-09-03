@@ -62,6 +62,7 @@ export function App({ dictionaryLoader = loadDictionary }: AppProps) {
           <Board
             board={game.board}
             enabled={enabled}
+            isEnabled={game.isSelectionEnabled}
             path={game.path}
             resetKey={game.roundKey}
             usedCells={game.usedCells}

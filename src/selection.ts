@@ -424,7 +424,8 @@ export class SelectionController {
   }
 
   destroy(): void {
-    this.cancel();
+    this.finishPointer();
+    this.path = [];
     this.boardElement.removeEventListener("pointerdown", this.handlePointerDown);
     this.boardElement.removeEventListener(
       "lostpointercapture",

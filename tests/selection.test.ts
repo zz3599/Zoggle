@@ -405,6 +405,18 @@ test("SelectionController cancels without submitting on Escape or lost capture",
   assert.deepEqual(harness.pathChanges.at(-1), []);
 });
 
+test("SelectionController destroys without notifying during cleanup", () => {
+  const harness = createControllerHarness();
+  const first = harness.cell(0, 0);
+
+  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  const changeCount = harness.pathChanges.length;
+  harness.controller.destroy();
+
+  assert.deepEqual(harness.controller.path, []);
+  assert.equal(harness.pathChanges.length, changeCount);
+});
+
 test("SelectionController does not begin a path while disabled", () => {
   const harness = createControllerHarness({ enabled: false });
 

@@ -6,6 +6,7 @@ import type { BoardDefinition, Coordinate } from "../types";
 interface BoardProps {
   readonly board: BoardDefinition;
   readonly enabled: boolean;
+  readonly isEnabled: () => boolean;
   readonly path: readonly Coordinate[];
   readonly resetKey: number;
   readonly usedCells: ReadonlySet<string>;
@@ -20,6 +21,7 @@ function cellKey({ row, col }: Coordinate): string {
 export function Board({
   board,
   enabled,
+  isEnabled,
   path,
   resetKey,
   usedCells,
@@ -32,6 +34,7 @@ export function Board({
   useSelectionController({
     boardRef,
     enabled,
+    isEnabled,
     isCellAvailable: (coordinate) => !usedCells.has(cellKey(coordinate)),
     onPathChange,
     onSubmit,
@@ -46,7 +49,7 @@ export function Board({
     <div
       ref={boardRef}
       className={`board${enabled ? "" : " board--disabled"}`}
-      role="grid"
+      role="group"
       aria-disabled={!enabled}
       aria-label={`${board.id} board, ${board.letters.length} by ${board.letters.length}`}
       style={boardStyle}
@@ -71,7 +74,6 @@ export function Board({
               className={className}
               data-row={rowIndex}
               data-col={colIndex}
-              role="gridcell"
               aria-label={`${letter}, row ${rowIndex + 1}, column ${colIndex + 1}`}
               disabled={!enabled || used}
             >

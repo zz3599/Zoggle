@@ -29,6 +29,7 @@ export interface GameController {
   readonly board: BoardDefinition;
   readonly currentWord: string;
   readonly enabled: boolean;
+  readonly isSelectionEnabled: () => boolean;
   readonly path: readonly Coordinate[];
   readonly roundKey: number;
   readonly snapshot: RoundSnapshot | null;
@@ -220,6 +221,10 @@ export function useGame(
 
   const playAgain = useCallback(() => resetRound(false), [resetRound]);
   const playNextBoard = useCallback(() => resetRound(true), [resetRound]);
+  const isSelectionEnabled = useCallback(() => {
+    const current = sessionRef.current;
+    return current !== null && !current.game.isExpired();
+  }, []);
 
   const snapshot = session?.snapshot ?? null;
   const usedCells = useMemo(
@@ -231,6 +236,7 @@ export function useGame(
     board,
     currentWord,
     enabled: snapshot !== null && !snapshot.expired,
+    isSelectionEnabled,
     path,
     roundKey: session?.roundKey ?? 0,
     snapshot,
