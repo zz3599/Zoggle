@@ -31,14 +31,14 @@ export function isInBounds(
   board: LetterGrid,
   position: unknown,
 ): position is Coordinate {
+  const row = isCoordinate(position) ? board[position.row] : undefined;
   return (
-    Array.isArray(board) &&
     isCoordinate(position) &&
     position.row >= 0 &&
     position.row < board.length &&
-    Array.isArray(board[position.row]) &&
+    Array.isArray(row) &&
     position.col >= 0 &&
-    position.col < board[position.row].length
+    position.col < row.length
   );
 }
 
@@ -51,10 +51,11 @@ export function isValidPath(
     return false;
   }
 
-  const visited = new Set();
+  const positions: readonly unknown[] = path;
+  const visited = new Set<string>();
 
-  for (let index = 0; index < path.length; index += 1) {
-    const position = path[index];
+  for (let index = 0; index < positions.length; index += 1) {
+    const position = positions[index];
 
     if (!isInBounds(board, position)) {
       return false;
@@ -66,7 +67,7 @@ export function isValidPath(
     }
     visited.add(key);
 
-    if (index > 0 && !areAdjacent(path[index - 1], position)) {
+    if (index > 0 && !areAdjacent(positions[index - 1], position)) {
       return false;
     }
   }
@@ -92,16 +93,16 @@ function collectionHas(collection: unknown, word: string): boolean {
     return false;
   }
 
-  if (
-    typeof collection === "object" &&
-    "has" in collection &&
-    typeof collection.has === "function"
-  ) {
-    return collection.has(word);
+  if (typeof collection === "object" && "has" in collection) {
+    const has = (collection as { readonly has?: unknown }).has;
+    if (typeof has === "function") {
+      return (has as (value: string) => boolean).call(collection, word);
+    }
   }
 
   if (Array.isArray(collection)) {
-    return collection.includes(word);
+    const values: readonly unknown[] = collection;
+    return values.includes(word);
   }
 
   if (typeof collection === "object") {

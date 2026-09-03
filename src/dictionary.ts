@@ -26,7 +26,7 @@ export function dictionaryFromObject(entries: unknown): Set<string> {
 }
 
 export async function loadDictionary({
-  fetchImpl = globalThis.fetch as DictionaryFetch,
+  fetchImpl = globalThis.fetch,
   url = new URL("../assets/dictionary.json", import.meta.url),
 }: LoadDictionaryOptions = {}): Promise<Set<string>> {
   if (typeof fetchImpl !== "function") {

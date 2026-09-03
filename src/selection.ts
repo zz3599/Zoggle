@@ -28,7 +28,8 @@ export function extendPath(
   path: readonly Coordinate[],
   candidate: unknown,
 ): readonly Coordinate[] {
-  if (!Array.isArray(path)) {
+  const pathValue: unknown = path;
+  if (!Array.isArray(pathValue)) {
     throw new TypeError("path must be an array");
   }
 
@@ -273,13 +274,6 @@ export class SelectionController {
     this.onSubmit = onSubmit;
     this.isEnabled = isEnabled;
     this.isCellAvailable = isCellAvailable;
-    this.handlePointerDown = this.handlePointerDown.bind(this);
-    this.handlePointerMove = this.handlePointerMove.bind(this);
-    this.handlePointerUp = this.handlePointerUp.bind(this);
-    this.handlePointerCancel = this.handlePointerCancel.bind(this);
-    this.handleLostPointerCapture = this.handleLostPointerCapture.bind(this);
-    this.handleKeyDown = this.handleKeyDown.bind(this);
-
     boardElement.addEventListener("pointerdown", this.handlePointerDown);
     boardElement.addEventListener(
       "lostpointercapture",
@@ -291,7 +285,7 @@ export class SelectionController {
     this.document.addEventListener("keydown", this.handleKeyDown);
   }
 
-  handlePointerDown(event: PointerEvent): void {
+  handlePointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 || this.pointerId !== null || !this.isEnabled()) {
       return;
     }
@@ -305,9 +299,9 @@ export class SelectionController {
     this.pointerId = event.pointerId;
     this.boardElement.setPointerCapture?.(event.pointerId);
     this.setPath(extendPath([], coordinate));
-  }
+  };
 
-  handlePointerMove(event: PointerEvent): void {
+  handlePointerMove = (event: PointerEvent): void => {
     if (event.pointerId !== this.pointerId) {
       return;
     }
@@ -336,9 +330,9 @@ export class SelectionController {
       event.preventDefault();
       this.setPath(nextPath);
     }
-  }
+  };
 
-  handlePointerUp(event: PointerEvent): void {
+  handlePointerUp = (event: PointerEvent): void => {
     if (event.pointerId !== this.pointerId) {
       return;
     }
@@ -371,26 +365,26 @@ export class SelectionController {
     if (shouldSubmit) {
       this.onSubmit(submittedPath);
     }
-  }
+  };
 
-  handlePointerCancel(event: PointerEvent): void {
+  handlePointerCancel = (event: PointerEvent): void => {
     if (event.pointerId === this.pointerId) {
       this.cancel();
     }
-  }
+  };
 
-  handleLostPointerCapture(event: PointerEvent): void {
+  handleLostPointerCapture = (event: PointerEvent): void => {
     if (event.pointerId === this.pointerId) {
       this.cancel();
     }
-  }
+  };
 
-  handleKeyDown(event: KeyboardEvent): void {
+  handleKeyDown = (event: KeyboardEvent): void => {
     if (event.key === "Escape" && this.pointerId !== null) {
       event.preventDefault();
       this.cancel();
     }
-  }
+  };
 
   private setPath(path: readonly Coordinate[]): void {
     this.path = path;

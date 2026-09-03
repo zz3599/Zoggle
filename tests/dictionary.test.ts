@@ -23,10 +23,10 @@ test("dictionaryFromObject rejects malformed data", () => {
 test("loadDictionary reports an unsuccessful request", async () => {
   await assert.rejects(
     loadDictionary({
-      fetchImpl: async () => ({
+      fetchImpl: () => Promise.resolve({
         ok: false,
         status: 404,
-        json: async () => ({}),
+        json: () => Promise.resolve({}),
       }),
       url: "/missing.json",
     }),
@@ -36,10 +36,10 @@ test("loadDictionary reports an unsuccessful request", async () => {
 
 test("loadDictionary returns a playable word set", async () => {
   const dictionary = await loadDictionary({
-    fetchImpl: async () => ({
+    fetchImpl: () => Promise.resolve({
       ok: true,
       status: 200,
-      json: async () => ({ cat: "a feline", "x-ray": "hyphenated" }),
+      json: () => Promise.resolve({ cat: "a feline", "x-ray": "hyphenated" }),
     }),
     url: "/dictionary.json",
   });

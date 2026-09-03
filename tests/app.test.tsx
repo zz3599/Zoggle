@@ -61,7 +61,7 @@ function traceCells(...cells: HTMLElement[]): void {
 }
 
 async function renderReady(dictionary = new Set(["cat"])) {
-  const dictionaryLoader = vi.fn(async () => dictionary);
+  const dictionaryLoader = vi.fn(() => Promise.resolve(dictionary));
   const result = render(
     <StrictMode>
       <App dictionaryLoader={dictionaryLoader} />
@@ -210,7 +210,9 @@ describe("App", () => {
 
     expect(screen.getByText(READY_MESSAGE)).toBeInTheDocument();
 
-    act(() => vi.advanceTimersByTime(60_000));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
 
     expect(screen.getByText("Time’s up!")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: /garden board/ })).toHaveAttribute(

@@ -346,13 +346,18 @@ function normalizeCell(cell: unknown): string | null {
     return `${row},${col}`;
   }
 
-  const row = Array.isArray(cell)
-    ? cell[0]
-    : (cell as { readonly row?: unknown } | null)?.row;
-  const col = Array.isArray(cell)
-    ? cell[1]
-    : (cell as { readonly col?: unknown } | null)?.col;
-  if (!Number.isInteger(row) || row < 0 || !Number.isInteger(col) || col < 0) {
+  const tuple: readonly unknown[] | null = Array.isArray(cell) ? cell : null;
+  const object = cell as { readonly row?: unknown; readonly col?: unknown } | null;
+  const row = tuple ? tuple[0] : object?.row;
+  const col = tuple ? tuple[1] : object?.col;
+  if (
+    typeof row !== "number" ||
+    !Number.isInteger(row) ||
+    row < 0 ||
+    typeof col !== "number" ||
+    !Number.isInteger(col) ||
+    col < 0
+  ) {
     return null;
   }
   return `${row},${col}`;
