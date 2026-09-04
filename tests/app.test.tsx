@@ -250,4 +250,69 @@ describe("App", () => {
       "false",
     );
   });
+
+  test("pauses while the page is unfocused and resumes when focus returns", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-03T12:00:00Z"));
+    const request = deferred<Set<string>>();
+
+    render(
+      <StrictMode>
+        <App dictionaryLoader={() => request.promise} />
+      </StrictMode>,
+    );
+    await act(async () => {
+      request.resolve(new Set(["cat"]));
+      await request.promise;
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(screen.getByText("0:50", { selector: "#timer-value" })).toBeInTheDocument();
+
+    fireEvent.blur(window);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(70_000);
+    });
+
+    expect(screen.getByText("0:50", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(screen.queryByText("Time’s up!")).toBeNull();
+
+    fireEvent.focus(window);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(49_900);
+    });
+    expect(screen.getByText("0:01", { selector: "#timer-value" })).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(screen.getByText("Time’s up!")).toBeInTheDocument();
+  });
+
+  test("starts paused if focus is lost while the dictionary loads", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-03T12:00:00Z"));
+    const request = deferred<Set<string>>();
+
+    render(<App dictionaryLoader={() => request.promise} />);
+    fireEvent.blur(window);
+    await act(async () => {
+      request.resolve(new Set(["cat"]));
+      await request.promise;
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(70_000);
+    });
+    expect(screen.getByText("1:00", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(screen.queryByText("Time’s up!")).toBeNull();
+
+    fireEvent.focus(window);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(screen.getByText("0:59", { selector: "#timer-value" })).toBeInTheDocument();
+  });
 });

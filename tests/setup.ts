@@ -29,6 +29,18 @@ Object.defineProperty(globalThis, "localStorage", {
   value: storage,
 });
 
+let pageHasFocus = true;
+Object.defineProperty(document, "hasFocus", {
+  configurable: true,
+  value: () => pageHasFocus,
+});
+window.addEventListener("blur", () => {
+  pageHasFocus = false;
+});
+window.addEventListener("focus", () => {
+  pageHasFocus = true;
+});
+
 let elementAtPoint: Element | null = null;
 Object.defineProperty(document, "elementFromPoint", {
   configurable: true,
@@ -42,6 +54,7 @@ export function setElementAtPoint(element: Element | null): void {
 afterEach(() => {
   cleanup();
   elementAtPoint = null;
+  pageHasFocus = true;
   storage.clear();
   vi.useRealTimers();
   vi.restoreAllMocks();

@@ -94,6 +94,7 @@ export class GameState {
   private durationMs = DEFAULT_ROUND_DURATION_MS;
   private startedAt = 0;
   private endsAt = 0;
+  private pausedRemainingMs: number | null = null;
   private score = 0;
   private highScore = 0;
   private foundWords: string[] = [];
@@ -125,6 +126,7 @@ export class GameState {
     this.durationMs = normalizeDuration(durationMs);
     this.startedAt = readClock(this.now);
     this.endsAt = this.startedAt + this.durationMs;
+    this.pausedRemainingMs = null;
     this.score = 0;
     this.foundWords = [];
     this.foundWordSet = new Set();
@@ -229,6 +231,30 @@ export class GameState {
     return this.snapshotAt(readClock(this.now));
   }
 
+  /** Freeze the round clock until resume is called. */
+  pause(): RoundSnapshot {
+    const pausedAt = readClock(this.now);
+    if (this.pausedRemainingMs === null) {
+      const remainingMs = this.remainingMsAt(pausedAt);
+      if (remainingMs > 0) this.pausedRemainingMs = remainingMs;
+    }
+    return this.snapshotAt(pausedAt);
+  }
+
+  /** Continue a paused round without counting time spent paused. */
+  resume(): RoundSnapshot {
+    const resumedAt = readClock(this.now);
+    if (this.pausedRemainingMs !== null) {
+      this.endsAt = resumedAt + this.pausedRemainingMs;
+      this.pausedRemainingMs = null;
+    }
+    return this.snapshotAt(resumedAt);
+  }
+
+  isPaused(): boolean {
+    return this.pausedRemainingMs !== null;
+  }
+
   getRemainingMs(): number {
     return this.getSnapshot().remainingMs;
   }
@@ -262,10 +288,7 @@ export class GameState {
   }
 
   private snapshotAt(at: number): RoundSnapshot {
-    const remainingMs = Math.min(
-      this.durationMs,
-      Math.max(0, this.endsAt - at),
-    );
+    const remainingMs = this.remainingMsAt(at);
     const expired = remainingMs === 0;
 
     return Object.freeze({
@@ -284,7 +307,12 @@ export class GameState {
   }
 
   private isExpiredAt(at: number): boolean {
-    return at >= this.endsAt;
+    return this.remainingMsAt(at) === 0;
+  }
+
+  private remainingMsAt(at: number): number {
+    if (this.pausedRemainingMs !== null) return this.pausedRemainingMs;
+    return Math.min(this.durationMs, Math.max(0, this.endsAt - at));
   }
 
   private readHighScore(boardId: string): number {

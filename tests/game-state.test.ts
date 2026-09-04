@@ -70,6 +70,37 @@ test("starts a configurable round and expires exactly at its deadline", () => {
   assert.equal(game.getSnapshot().status, "expired");
 });
 
+test("freezes the round clock while paused and resumes from the same time", () => {
+  let currentTime = 1_000;
+  const game = createGameState({
+    boardId: "board-1",
+    durationMs: 2_000,
+    storage: null,
+    now: () => currentTime,
+  });
+
+  currentTime = 1_500;
+  assert.equal(game.pause().remainingMs, 1_500);
+  assert.equal(game.isPaused(), true);
+
+  currentTime = 10_000;
+  assert.equal(game.pause().remainingMs, 1_500, "pausing twice is idempotent");
+  assert.equal(game.getRemainingMs(), 1_500);
+  assert.equal(game.isExpired(), false);
+
+  const resumed = game.resume();
+  assert.equal(resumed.remainingMs, 1_500);
+  assert.equal(resumed.endsAt, 11_500);
+  assert.equal(game.isPaused(), false);
+
+  currentTime = 10_500;
+  assert.equal(game.resume().remainingMs, 1_000, "resuming twice is idempotent");
+  currentTime = 11_499;
+  assert.equal(game.getRemainingMs(), 1);
+  currentTime = 11_500;
+  assert.equal(game.isExpired(), true);
+});
+
 test("accepts validated words, rejects invalid and duplicate words, and tracks used cells", () => {
   const validated: Array<{
     readonly word: string;

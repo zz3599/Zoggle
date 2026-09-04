@@ -20,6 +20,7 @@ export interface StatusMessage {
 interface GameSession {
   readonly game: GameState;
   readonly boardIndex: number;
+  readonly paused: boolean;
   readonly snapshot: RoundSnapshot;
   readonly roundKey: number;
   readonly status: StatusMessage;
@@ -50,6 +51,12 @@ function boardAt(index: number): BoardDefinition {
   const board = BOARDS[index];
   if (!board) throw new RangeError(`Missing board at index ${index}`);
   return board;
+}
+
+function pageHasFocus(): boolean {
+  if (typeof document === "undefined") return true;
+  return !document.hidden &&
+    (typeof document.hasFocus !== "function" || document.hasFocus());
 }
 
 function validatorFor(dictionary: ReadonlySet<string>): ValidateWord {
@@ -112,10 +119,12 @@ export function useGame(
       validateWord: validatorFor(dictionary),
       scoreWord,
     });
+    const snapshot = pageHasFocus() ? game.getSnapshot() : game.pause();
     return {
       game,
       boardIndex: 0,
-      snapshot: game.getSnapshot(),
+      paused: game.isPaused(),
+      snapshot,
       roundKey: 0,
       status: READY_STATUS,
     };
@@ -128,12 +137,14 @@ export function useGame(
   }, []);
 
   const { game } = session;
+  const { paused } = session;
   const { endsAt, expired } = session.snapshot;
 
   useEffect(() => {
-    if (expired) return;
+    if (expired || paused) return;
 
     const timerId = window.setInterval(() => {
+      if (game.isPaused()) return;
       const snapshot = game.getSnapshot();
       const current = sessionRef.current;
       if (current.game !== game) return;
@@ -148,7 +159,59 @@ export function useGame(
     }, 100);
 
     return () => window.clearInterval(timerId);
-  }, [commitSession, endsAt, expired, game]);
+  }, [commitSession, endsAt, expired, game, paused]);
+
+  useEffect(() => {
+    const pauseRound = () => {
+      const current = sessionRef.current;
+      if (
+        current.game !== game ||
+        current.paused ||
+        current.snapshot.expired
+      ) {
+        return;
+      }
+
+      const snapshot = game.pause();
+      commitSession({
+        ...current,
+        paused: game.isPaused(),
+        snapshot,
+        status: snapshot.expired
+          ? roundCompleteStatus(snapshot.score)
+          : current.status,
+      });
+    };
+
+    const resumeRound = () => {
+      const current = sessionRef.current;
+      if (current.game !== game || !current.paused || !pageHasFocus()) return;
+
+      commitSession({
+        ...current,
+        paused: false,
+        snapshot: game.resume(),
+      });
+    };
+
+    const syncPageFocus = () => {
+      if (pageHasFocus()) {
+        resumeRound();
+      } else {
+        pauseRound();
+      }
+    };
+
+    window.addEventListener("blur", pauseRound);
+    window.addEventListener("focus", syncPageFocus);
+    document.addEventListener("visibilitychange", syncPageFocus);
+    syncPageFocus();
+    return () => {
+      window.removeEventListener("blur", pauseRound);
+      window.removeEventListener("focus", syncPageFocus);
+      document.removeEventListener("visibilitychange", syncPageFocus);
+    };
+  }, [commitSession, game]);
 
   const resetRound = useCallback((advanceBoard: boolean) => {
     const current = sessionRef.current;
@@ -157,14 +220,16 @@ export function useGame(
       ? (current.boardIndex + 1) % BOARDS.length
       : current.boardIndex;
     const board = boardAt(boardIndex);
-    const snapshot = current.game.resetRound({
+    let snapshot = current.game.resetRound({
       boardId: board.id,
       durationMs: ROUND_SECONDS * 1000,
     });
+    if (!pageHasFocus()) snapshot = current.game.pause();
 
     commitSession({
       ...current,
       boardIndex,
+      paused: current.game.isPaused(),
       snapshot,
       roundKey: current.roundKey + 1,
       status: READY_STATUS,
@@ -209,7 +274,7 @@ export function useGame(
   const playNextBoard = useCallback(() => resetRound(true), [resetRound]);
   const isSelectionEnabled = useCallback(() => {
     const current = sessionRef.current;
-    return current !== null && !current.game.isExpired();
+    return !current.game.isPaused() && !current.game.isExpired();
   }, []);
 
   const { snapshot } = session;
