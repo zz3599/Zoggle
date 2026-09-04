@@ -59,9 +59,21 @@ function GameScreen({ game, status, onRetry }: GameScreenProps) {
         <section className="board-panel" aria-labelledby="board-name">
           <div className="board-heading">
             <h2 id="board-name">{board.id} board</h2>
-            <p id="status" role="status" aria-live="polite" data-tone={status.tone}>
-              {status.text}
-            </p>
+            <div className="board-feedback">
+              {game?.currentWord && (
+                <output id="current-word" aria-label="Current word">
+                  {game.currentWord.toUpperCase()}
+                </output>
+              )}
+              <p
+                id="status"
+                role="status"
+                aria-live="polite"
+                data-tone={status.tone}
+              >
+                {status.text}
+              </p>
+            </div>
           </div>
 
           <Board
@@ -74,13 +86,6 @@ function GameScreen({ game, status, onRetry }: GameScreenProps) {
             onPathChange={game?.onPathChange ?? ignorePath}
             onSubmit={game?.onSubmit ?? ignorePath}
           />
-
-          <div className="word-preview" aria-live="polite">
-            <span>Current word</span>
-            <output id="current-word">
-              {game?.currentWord ? game.currentWord.toUpperCase() : "—"}
-            </output>
-          </div>
 
           {onRetry && (
             <button

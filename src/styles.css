@@ -150,11 +150,37 @@ h2 {
 
 .board-heading {
   display: flex;
+  flex-wrap: wrap;
   min-height: 2.5rem;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.board-heading h2 {
+  flex: none;
+}
+
+.board-feedback {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+#current-word {
+  overflow: hidden;
+  min-width: 0;
+  color: #244c43;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #status {
@@ -165,8 +191,10 @@ h2 {
 }
 
 #status[data-tone="success"] {
+  flex: none;
   color: #26735f;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 #status[data-tone="error"] {
@@ -235,35 +263,6 @@ h2 {
 .board--disabled .cell:not(.cell--used) {
   color: #73807a;
   background: #f4f2ec;
-}
-
-.word-preview {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  min-height: 3.5rem;
-  margin-top: 1.25rem;
-  padding: 0.8rem 1rem;
-  border-radius: 0.8rem;
-  background: #f1eee6;
-}
-
-.word-preview span {
-  color: #75807c;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.word-preview output {
-  overflow: hidden;
-  color: #244c43;
-  font-size: 1.25rem;
-  font-weight: 800;
-  letter-spacing: 0.09em;
-  text-overflow: ellipsis;
 }
 
 .words-panel {
@@ -387,7 +386,6 @@ h2 {
 
 @media (max-width: 760px) {
   .game-header,
-  .board-heading,
   .round-actions {
     align-items: flex-start;
     flex-direction: column;

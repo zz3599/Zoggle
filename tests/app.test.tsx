@@ -33,6 +33,15 @@ function boardCells(): HTMLElement[] {
   return within(board).getAllByRole("button");
 }
 
+function boardHeader(): HTMLElement {
+  const boardName = screen.getByRole("heading", { name: /board$/ });
+  const header = boardName.closest(".board-heading");
+  if (!(header instanceof HTMLElement)) {
+    throw new Error("The board name must be rendered in the board header");
+  }
+  return header;
+}
+
 function traceCells(...cells: HTMLElement[]): void {
   const first = cells[0];
   if (!first) throw new Error("At least one cell is required");
@@ -71,6 +80,22 @@ async function renderReady(dictionary = new Set(["cat"])) {
 
   expect(await screen.findByText(READY_MESSAGE)).toBeInTheDocument();
   return { ...result, dictionaryLoader };
+}
+
+async function renderReadyWithFakeTimers(
+  dictionary = new Set(["cat"]),
+) {
+  vi.useFakeTimers();
+  const request = deferred<Set<string>>();
+  const result = render(<App dictionaryLoader={() => request.promise} />);
+
+  await act(async () => {
+    request.resolve(dictionary);
+    await request.promise;
+  });
+
+  expect(screen.getByText(READY_MESSAGE)).toBeInTheDocument();
+  return result;
 }
 
 describe("App", () => {
@@ -135,8 +160,25 @@ describe("App", () => {
     expect(consoleError).toHaveBeenCalledTimes(1);
   });
 
-  test("submits a traced word and renders the updated round", async () => {
+  test("replaces the ready instruction with the live selection", async () => {
     await renderReady();
+    const header = boardHeader();
+    const first = screen.getByRole("button", {
+      name: "C, row 1, column 1",
+    });
+
+    fireEvent.pointerDown(first, { button: 0, pointerId: 11 });
+
+    expect(
+      within(header).getByText("C", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(within(header).queryByText(READY_MESSAGE)).toBeNull();
+
+    fireEvent.pointerCancel(document, { pointerId: 11 });
+  });
+
+  test("shows accepted word feedback in the board header for three seconds", async () => {
+    await renderReadyWithFakeTimers();
     const first = screen.getByRole("button", {
       name: "C, row 1, column 1",
     });
@@ -148,12 +190,39 @@ describe("App", () => {
     });
     traceCells(first, second, third);
 
-    expect(screen.getByText("CAT · +1 point")).toBeInTheDocument();
+    const header = boardHeader();
+    expect(
+      within(header).getByText("CAT", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(
+      within(header).getByText("+1 point", { selector: "#status" }),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".word-preview")).toBeNull();
     expect(screen.getByText("cat", { selector: "li" })).toBeInTheDocument();
     expect(screen.getByText("1", { selector: "#score-value" })).toBeInTheDocument();
     expect(first).toBeDisabled();
     expect(second).toBeDisabled();
     expect(third).toBeDisabled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_999);
+    });
+    expect(
+      within(header).getByText("CAT", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(
+      within(header).getByText("+1 point", { selector: "#status" }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(
+      within(header).queryByText("CAT", { selector: "#current-word" }),
+    ).toBeNull();
+    expect(
+      within(header).queryByText("+1 point", { selector: "#status" }),
+    ).toBeNull();
   });
 
   test("accepts an inflected form omitted by the Webster dictionary", async () => {
@@ -162,9 +231,91 @@ describe("App", () => {
 
     traceCells(...cells);
 
-    expect(screen.getByText("CATERS · +3 points")).toBeInTheDocument();
+    expect(
+      screen.getByText("CATERS", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("+3 points", { selector: "#status" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("caters", { selector: "li" })).toBeInTheDocument();
     for (const cell of cells) expect(cell).toBeDisabled();
+  });
+
+  test("restarts the feedback timeout after a newer accepted word", async () => {
+    await renderReadyWithFakeTimers(new Set(["cat", "dog"]));
+    const cells = boardCells();
+
+    traceCells(...cells.slice(0, 3));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+
+    traceCells(...cells.slice(6, 9));
+    const header = boardHeader();
+    expect(
+      within(header).getByText("DOG", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(
+      within(header).getByText("+1 point", { selector: "#status" }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(
+      within(header).getByText("DOG", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(
+      within(header).getByText("+1 point", { selector: "#status" }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_999);
+    });
+    expect(
+      within(header).getByText("DOG", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(
+      within(header).getByText("+1 point", { selector: "#status" }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(
+      within(header).queryByText("DOG", { selector: "#current-word" }),
+    ).toBeNull();
+    expect(
+      within(header).queryByText("+1 point", { selector: "#status" }),
+    ).toBeNull();
+  });
+
+  test("clears accepted feedback when a new drag starts", async () => {
+    await renderReadyWithFakeTimers();
+    const cells = boardCells();
+
+    traceCells(...cells.slice(0, 3));
+    const header = boardHeader();
+    expect(
+      within(header).getByText("CAT", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(
+      within(header).getByText("+1 point", { selector: "#status" }),
+    ).toBeInTheDocument();
+
+    fireEvent.pointerDown(cells[6]!, { button: 0, pointerId: 11 });
+
+    expect(
+      within(header).getByText("D", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(
+      within(header).queryByText("CAT", { selector: "#current-word" }),
+    ).toBeNull();
+    expect(
+      within(header).queryByText("+1 point", { selector: "#status" }),
+    ).toBeNull();
+
+    fireEvent.pointerCancel(document, { pointerId: 11 });
   });
 
   test("rejects a short word without consuming its cells", async () => {
@@ -198,11 +349,12 @@ describe("App", () => {
     });
 
     traceCells(first, second, third);
-    const partial = screen.getByRole("button", {
-      name: "D, row 2, column 1",
-    });
-    fireEvent.pointerDown(partial, { button: 0, pointerId: 11 });
-    expect(screen.getByText("D", { selector: "output" })).toBeInTheDocument();
+    expect(
+      screen.getByText("CAT", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("+1 point", { selector: "#status" }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Play again" }));
 
@@ -210,7 +362,8 @@ describe("App", () => {
     expect(screen.getByText("1:00", { selector: "#timer-value" })).toBeInTheDocument();
     expect(screen.getByText("0", { selector: "#score-value" })).toBeInTheDocument();
     expect(screen.getByText("1", { selector: "#high-score-value" })).toBeInTheDocument();
-    expect(screen.getByText("—", { selector: "output" })).toBeInTheDocument();
+    expect(screen.queryByText("CAT", { selector: "#current-word" })).toBeNull();
+    expect(screen.queryByText("+1 point", { selector: "#status" })).toBeNull();
     expect(screen.getByText("Your words will appear here.")).toBeInTheDocument();
     expect(first).toBeEnabled();
     expect(second).toBeEnabled();
@@ -249,6 +402,41 @@ describe("App", () => {
       "aria-disabled",
       "false",
     );
+  });
+
+  test("keeps the round-complete status when feedback expires with the round", async () => {
+    await renderReadyWithFakeTimers();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(57_000);
+    });
+    expect(screen.getByText("0:03", { selector: "#timer-value" })).toBeInTheDocument();
+
+    traceCells(...boardCells().slice(0, 3));
+    expect(
+      screen.getByText("CAT", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("+1 point", { selector: "#status" }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+
+    expect(screen.getByText("Time’s up!")).toBeInTheDocument();
+    expect(
+      screen.getByText("Round complete — 1 point.", { selector: "#status" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("CAT", { selector: "#current-word" })).toBeNull();
+    expect(screen.queryByText("+1 point", { selector: "#status" })).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(
+      screen.getByText("Round complete — 1 point.", { selector: "#status" }),
+    ).toBeInTheDocument();
   });
 
   test("pauses while the page is unfocused and resumes when focus returns", async () => {

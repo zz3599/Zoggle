@@ -20,6 +20,8 @@ export interface StatusMessage {
 interface GameSession {
   readonly game: GameState;
   readonly boardIndex: number;
+  readonly feedbackKey: number;
+  readonly feedbackWord: string;
   readonly paused: boolean;
   readonly snapshot: RoundSnapshot;
   readonly roundKey: number;
@@ -46,6 +48,13 @@ const READY_STATUS: StatusMessage = {
   text: "Hold and drag across neighboring letters to make a word.",
   tone: "neutral",
 };
+
+const EMPTY_STATUS: StatusMessage = {
+  text: "",
+  tone: "neutral",
+};
+
+const FEEDBACK_DURATION_MS = 3_000;
 
 function boardAt(index: number): BoardDefinition {
   const board = BOARDS[index];
@@ -79,7 +88,7 @@ function submissionMessage(result: SubmissionResult): StatusMessage {
   if (result.accepted) {
     const suffix = result.points === 1 ? "point" : "points";
     return {
-      text: `${result.word.toUpperCase()} · +${result.points} ${suffix}`,
+      text: `+${result.points} ${suffix}`,
       tone: "success",
     };
   }
@@ -123,6 +132,8 @@ export function useGame(
     return {
       game,
       boardIndex: 0,
+      feedbackKey: 0,
+      feedbackWord: "",
       paused: game.isPaused(),
       snapshot,
       roundKey: 0,
@@ -151,6 +162,7 @@ export function useGame(
 
       commitSession({
         ...current,
+        feedbackWord: snapshot.expired ? "" : current.feedbackWord,
         snapshot,
         status: snapshot.expired
           ? roundCompleteStatus(snapshot.score)
@@ -160,6 +172,37 @@ export function useGame(
 
     return () => window.clearInterval(timerId);
   }, [commitSession, endsAt, expired, game, paused]);
+
+  useEffect(() => {
+    if (!session.feedbackWord || session.status.tone !== "success") return;
+
+    const feedbackKey = session.feedbackKey;
+    const timerId = window.setTimeout(() => {
+      const current = sessionRef.current;
+      if (
+        current.game !== game ||
+        current.feedbackKey !== feedbackKey ||
+        !current.feedbackWord ||
+        current.status.tone !== "success"
+      ) {
+        return;
+      }
+
+      commitSession({
+        ...current,
+        feedbackWord: "",
+        status: EMPTY_STATUS,
+      });
+    }, FEEDBACK_DURATION_MS);
+
+    return () => window.clearTimeout(timerId);
+  }, [
+    commitSession,
+    game,
+    session.feedbackKey,
+    session.feedbackWord,
+    session.status.tone,
+  ]);
 
   useEffect(() => {
     const pauseRound = () => {
@@ -175,6 +218,7 @@ export function useGame(
       const snapshot = game.pause();
       commitSession({
         ...current,
+        feedbackWord: snapshot.expired ? "" : current.feedbackWord,
         paused: game.isPaused(),
         snapshot,
         status: snapshot.expired
@@ -229,6 +273,8 @@ export function useGame(
     commitSession({
       ...current,
       boardIndex,
+      feedbackKey: current.feedbackKey + 1,
+      feedbackWord: "",
       paused: current.game.isPaused(),
       snapshot,
       roundKey: current.roundKey + 1,
@@ -237,7 +283,7 @@ export function useGame(
   }, [commitSession]);
 
   const board = boardAt(session.boardIndex);
-  const currentWord = useMemo(() => {
+  const pathWord = useMemo(() => {
     if (path.length === 0) return "";
     try {
       return wordFromPath(board.letters, path);
@@ -245,6 +291,23 @@ export function useGame(
       return "";
     }
   }, [board, path]);
+
+  const onPathChange = useCallback((nextPath: readonly Coordinate[]) => {
+    setPath(nextPath);
+    if (nextPath.length === 0) return;
+
+    const current = sessionRef.current;
+    const hasSuccessFeedback =
+      Boolean(current.feedbackWord) && current.status.tone === "success";
+    if (!hasSuccessFeedback && current.status !== READY_STATUS) return;
+
+    commitSession({
+      ...current,
+      feedbackKey: current.feedbackKey + 1,
+      feedbackWord: "",
+      status: EMPTY_STATUS,
+    });
+  }, [commitSession]);
 
   const onSubmit = useCallback((submittedPath: readonly Coordinate[]) => {
     const current = sessionRef.current;
@@ -255,6 +318,8 @@ export function useGame(
     } catch {
       commitSession({
         ...current,
+        feedbackKey: current.feedbackKey + 1,
+        feedbackWord: "",
         status: { text: "That path cannot be used.", tone: "error" },
       });
       return;
@@ -263,6 +328,8 @@ export function useGame(
     const result = current.game.submitWord({ word, cells: submittedPath });
     commitSession({
       ...current,
+      feedbackKey: current.feedbackKey + 1,
+      feedbackWord: result.accepted ? result.word : "",
       snapshot: result.state,
       status: result.state.expired
         ? roundCompleteStatus(result.state.score)
@@ -282,7 +349,7 @@ export function useGame(
 
   return {
     board,
-    currentWord,
+    currentWord: pathWord || session.feedbackWord,
     enabled: !snapshot.expired,
     isSelectionEnabled,
     path,
@@ -290,7 +357,7 @@ export function useGame(
     snapshot,
     status: session.status,
     usedCells,
-    onPathChange: setPath,
+    onPathChange,
     onSubmit,
     playAgain,
     playNextBoard,
