@@ -74,6 +74,15 @@ async function renderReady(dictionary = new Set(["cat"])) {
 }
 
 describe("App", () => {
+  test("shows each scoring category on its own row", async () => {
+    await renderReady();
+
+    const scoring = screen.getByRole("list", { name: "Scoring" });
+    expect(within(scoring).getAllByRole("listitem")).toHaveLength(6);
+    expect(within(scoring).getByText("3–4 letters")).toBeInTheDocument();
+    expect(within(scoring).getByText("9+ letters")).toBeInTheDocument();
+  });
+
   test("loads one dictionary in Strict Mode and enables the board", async () => {
     const request = deferred<Set<string>>();
     const dictionaryLoader = vi.fn(() => request.promise);

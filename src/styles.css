@@ -318,9 +318,22 @@ h2 {
 }
 
 .scoring-note {
-  margin-bottom: 0;
-  padding-top: 0.85rem;
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0.85rem 0 0;
   border-top: 1px solid #e1ddd2;
+  list-style: none;
+}
+
+.scoring-note li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.scoring-note strong {
+  font-variant-numeric: tabular-nums;
 }
 
 .round-actions {

@@ -18,9 +18,32 @@ export function FoundWords({ words }: FoundWordsProps) {
           [...words].reverse().map((word) => <li key={word}>{word}</li>)
         )}
       </ol>
-      <p className="scoring-note">
-        3–4 letters: 1 · 5: 2 · 6: 3 · 7: 4 · 8: 11 · 9+: 20
-      </p>
+      <ul className="scoring-note" aria-label="Scoring">
+        <li>
+          <span>3–4 letters</span>
+          <strong>1 point</strong>
+        </li>
+        <li>
+          <span>5 letters</span>
+          <strong>2 points</strong>
+        </li>
+        <li>
+          <span>6 letters</span>
+          <strong>3 points</strong>
+        </li>
+        <li>
+          <span>7 letters</span>
+          <strong>4 points</strong>
+        </li>
+        <li>
+          <span>8 letters</span>
+          <strong>11 points</strong>
+        </li>
+        <li>
+          <span>9+ letters</span>
+          <strong>20 points</strong>
+        </li>
+      </ul>
     </aside>
   );
 }
