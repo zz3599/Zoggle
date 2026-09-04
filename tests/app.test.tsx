@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 
 import { App } from "../src/App";
+import { dictionaryFromArray } from "../src/dictionary";
 import { setElementAtPoint } from "./setup";
 
 const READY_MESSAGE = "Hold and drag across neighboring letters to make a word.";
@@ -83,7 +84,7 @@ describe("App", () => {
       </StrictMode>,
     );
 
-    expect(screen.getByText("Loading Webster’s dictionary…")).toBeInTheDocument();
+    expect(screen.getByText("Loading dictionary…")).toBeInTheDocument();
     expect(boardCells()).toHaveLength(36);
     expect(boardCells()[0]).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Play again" })).toBeNull();
@@ -144,6 +145,17 @@ describe("App", () => {
     expect(first).toBeDisabled();
     expect(second).toBeDisabled();
     expect(third).toBeDisabled();
+  });
+
+  test("accepts an inflected form omitted by the Webster dictionary", async () => {
+    await renderReady(dictionaryFromArray(["caters"]));
+    const cells = boardCells().slice(0, 6);
+
+    traceCells(...cells);
+
+    expect(screen.getByText("CATERS · +3 points")).toBeInTheDocument();
+    expect(screen.getByText("caters", { selector: "li" })).toBeInTheDocument();
+    for (const cell of cells) expect(cell).toBeDisabled();
   });
 
   test("rejects a short word without consuming its cells", async () => {

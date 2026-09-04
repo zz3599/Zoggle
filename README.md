@@ -27,10 +27,16 @@ React 19, TypeScript, and Vite.
    they can also start a new board.
 
 ## Dictionary used
-The app uses the
+The app combines
 [Webster's English Dictionary](https://github.com/matthewreagan/WebstersEnglishDictionary)
-data stored in `assets/dictionary.json`. The file is about 22 MB, so its first
-load can take a moment.
+from `assets/dictionary.json` with the
+[an-array-of-english-words](https://github.com/words/an-array-of-english-words)
+word-game list, which is derived from Letterpress. Webster supplies headwords
+but omits most inflections. During generation, a WordNet-aware lemmatizer keeps
+the supplement's verified surface spellings whose base form is in Webster,
+including `caters` and irregular forms. `npm run generate:dictionary` builds
+the compact `assets/playable-words.json` file consumed by the app. Third-party
+notices are preserved in `public/THIRD_PARTY_NOTICES.txt`.
 
 ## Board generation
 1. Boards are currently defined statically in `src/config.ts`.

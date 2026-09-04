@@ -20,7 +20,7 @@ interface AppProps {
 }
 
 const LOADING_STATUS: StatusMessage = {
-  text: "Loading Webster’s dictionary…",
+  text: "Loading dictionary…",
   tone: "neutral",
 };
 
