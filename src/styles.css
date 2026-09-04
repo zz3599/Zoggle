@@ -84,14 +84,6 @@ h2 {
   text-transform: capitalize;
 }
 
-.instructions {
-  max-width: 31rem;
-  margin-bottom: 0;
-  color: #66736e;
-  font-size: 0.95rem;
-  line-height: 1.55;
-}
-
 .stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

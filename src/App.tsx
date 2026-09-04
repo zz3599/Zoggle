@@ -51,10 +51,6 @@ function GameScreen({ game, status, onRetry }: GameScreenProps) {
           <p className="eyebrow">A quick word hunt</p>
           <h1>Zoggle</h1>
         </div>
-        <p className="instructions">
-          Hold, trace neighboring letters, then release. Each tile can be used
-          once per round.
-        </p>
       </header>
 
       <Stats snapshot={snapshot} />
