@@ -30,6 +30,7 @@ export function Board({
 }: BoardProps) {
   const boardRef = useRef<HTMLDivElement>(null);
   const activeCells = useMemo(() => new Set(path.map(cellKey)), [path]);
+  const boardLabel = board.label ?? `${board.id} board`;
 
   useSelectionController({
     boardRef,
@@ -51,7 +52,7 @@ export function Board({
       className={`board${enabled ? "" : " board--disabled"}`}
       role="group"
       aria-disabled={!enabled}
-      aria-label={`${board.id} board, ${board.letters.length} by ${board.letters.length}`}
+      aria-label={`${boardLabel}, ${board.letters.length} by ${board.letters.length}`}
       style={boardStyle}
     >
       {board.letters.flatMap((row, rowIndex) =>

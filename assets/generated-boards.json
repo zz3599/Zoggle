@@ -1,0 +1,177 @@
+{
+  "formatVersion": 1,
+  "generatorVersion": "v1",
+  "seed": "zoggle-board-pool-2026-09-04",
+  "boardCount": 8,
+  "evaluationsPerBoard": 1200,
+  "letterPool": "AAABCDDEEEEFGHHIIILMNNOOOPRRSSTTTUWY",
+  "qualityThresholds": {
+    "wordCount": 1200,
+    "potentialScore": 3000,
+    "longWordCount": 100,
+    "cellCoverage": 36,
+    "greedyDisjointWordCount": 10
+  },
+  "boards": [
+    {
+      "id": "generated-v1-dab33bbddfdc3423",
+      "label": "Generated board 1",
+      "rows": [
+        "OHGNTY",
+        "RCAISE",
+        "ETRPLD",
+        "SIOEAI",
+        "AMDNTW",
+        "FBEOUH"
+      ],
+      "metrics": {
+        "wordCount": 2252,
+        "potentialScore": 8247,
+        "longestWordLength": 13,
+        "longWordCount": 542,
+        "cellCoverage": 36,
+        "greedyDisjointWordCount": 11
+      }
+    },
+    {
+      "id": "generated-v1-76f688fdf1e10b03",
+      "label": "Generated board 2",
+      "rows": [
+        "BOUETO",
+        "DLMCHW",
+        "SEAIAG",
+        "NTRTNE",
+        "IOSEDA",
+        "FHPIRY"
+      ],
+      "metrics": {
+        "wordCount": 2522,
+        "potentialScore": 11399,
+        "longestWordLength": 13,
+        "longWordCount": 803,
+        "cellCoverage": 36,
+        "greedyDisjointWordCount": 11
+      }
+    },
+    {
+      "id": "generated-v1-2677d6c62aeeb773",
+      "label": "Generated board 3",
+      "rows": [
+        "BHWMDY",
+        "ITIAEO",
+        "DSTNGR",
+        "NEEIAE",
+        "TARLPS",
+        "FOCUOH"
+      ],
+      "metrics": {
+        "wordCount": 2401,
+        "potentialScore": 9165,
+        "longestWordLength": 11,
+        "longWordCount": 678,
+        "cellCoverage": 36,
+        "greedyDisjointWordCount": 11
+      }
+    },
+    {
+      "id": "generated-v1-1df51c68aef9f23f",
+      "label": "Generated board 4",
+      "rows": [
+        "FBMDGA",
+        "HUEAIN",
+        "OSTNOT",
+        "YRETIR",
+        "EHASEP",
+        "WCILOD"
+      ],
+      "metrics": {
+        "wordCount": 2215,
+        "potentialScore": 8636,
+        "longestWordLength": 12,
+        "longWordCount": 572,
+        "cellCoverage": 36,
+        "greedyDisjointWordCount": 11
+      }
+    },
+    {
+      "id": "generated-v1-443d59d3fc4b882b",
+      "label": "Generated board 5",
+      "rows": [
+        "RTNDWF",
+        "EAIEOC",
+        "HPMRTH",
+        "OSEASE",
+        "ITLNGU",
+        "BAIODY"
+      ],
+      "metrics": {
+        "wordCount": 2327,
+        "potentialScore": 7834,
+        "longestWordLength": 13,
+        "longWordCount": 547,
+        "cellCoverage": 36,
+        "greedyDisjointWordCount": 11
+      }
+    },
+    {
+      "id": "generated-v1-56dd0b9c22f329bf",
+      "label": "Generated board 6",
+      "rows": [
+        "HUOWID",
+        "NDSREF",
+        "AIETLB",
+        "MGNIAE",
+        "YAROPS",
+        "HCTETO"
+      ],
+      "metrics": {
+        "wordCount": 2371,
+        "potentialScore": 8313,
+        "longestWordLength": 12,
+        "longWordCount": 627,
+        "cellCoverage": 36,
+        "greedyDisjointWordCount": 11
+      }
+    },
+    {
+      "id": "generated-v1-410cc004bd471323",
+      "label": "Generated board 7",
+      "rows": [
+        "WPRNDE",
+        "YAIEHC",
+        "ELSTAB",
+        "ADERUM",
+        "INISOF",
+        "GOTHTO"
+      ],
+      "metrics": {
+        "wordCount": 2155,
+        "potentialScore": 7066,
+        "longestWordLength": 11,
+        "longWordCount": 490,
+        "cellCoverage": 36,
+        "greedyDisjointWordCount": 12
+      }
+    },
+    {
+      "id": "generated-v1-67f99cf41c87b879",
+      "label": "Generated board 8",
+      "rows": [
+        "HESOIY",
+        "CAMPRD",
+        "TIRAET",
+        "HENTLF",
+        "EGSIAB",
+        "UODWON"
+      ],
+      "metrics": {
+        "wordCount": 2397,
+        "potentialScore": 9187,
+        "longestWordLength": 13,
+        "longWordCount": 645,
+        "cellCoverage": 36,
+        "greedyDisjointWordCount": 12
+      }
+    }
+  ]
+}

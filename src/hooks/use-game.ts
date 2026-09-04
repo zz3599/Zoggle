@@ -56,8 +56,11 @@ const EMPTY_STATUS: StatusMessage = {
 
 const FEEDBACK_DURATION_MS = 3_000;
 
-function boardAt(index: number): BoardDefinition {
-  const board = BOARDS[index];
+function boardAt(
+  boards: readonly BoardDefinition[],
+  index: number,
+): BoardDefinition {
+  const board = boards[index];
   if (!board) throw new RangeError(`Missing board at index ${index}`);
   return board;
 }
@@ -119,9 +122,10 @@ function roundCompleteStatus(score: number): StatusMessage {
 
 export function useGame(
   dictionary: ReadonlySet<string>,
+  boards: readonly BoardDefinition[] = BOARDS,
 ): GameController {
   const [session, setSession] = useState<GameSession>(() => {
-    const board = boardAt(0);
+    const board = boardAt(boards, 0);
     const game = new GameState({
       boardId: board.id,
       durationMs: ROUND_SECONDS * 1000,
@@ -261,9 +265,9 @@ export function useGame(
     const current = sessionRef.current;
     setPath([]);
     const boardIndex = advanceBoard
-      ? (current.boardIndex + 1) % BOARDS.length
+      ? (current.boardIndex + 1) % boards.length
       : current.boardIndex;
-    const board = boardAt(boardIndex);
+    const board = boardAt(boards, boardIndex);
     let snapshot = current.game.resetRound({
       boardId: board.id,
       durationMs: ROUND_SECONDS * 1000,
@@ -280,9 +284,9 @@ export function useGame(
       roundKey: current.roundKey + 1,
       status: READY_STATUS,
     });
-  }, [commitSession]);
+  }, [boards, commitSession]);
 
-  const board = boardAt(session.boardIndex);
+  const board = boardAt(boards, session.boardIndex);
   const pathWord = useMemo(() => {
     if (path.length === 0) return "";
     try {
@@ -311,7 +315,7 @@ export function useGame(
 
   const onSubmit = useCallback((submittedPath: readonly Coordinate[]) => {
     const current = sessionRef.current;
-    const currentBoard = boardAt(current.boardIndex);
+    const currentBoard = boardAt(boards, current.boardIndex);
     let word: string;
     try {
       word = wordFromPath(currentBoard.letters, submittedPath);
@@ -335,7 +339,7 @@ export function useGame(
         ? roundCompleteStatus(result.state.score)
         : submissionMessage(result),
     });
-  }, [commitSession]);
+  }, [boards, commitSession]);
 
   const playAgain = useCallback(() => resetRound(false), [resetRound]);
   const playNextBoard = useCallback(() => resetRound(true), [resetRound]);

@@ -9,8 +9,9 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "dev": "vite",
+    "generate:boards": "node --experimental-strip-types scripts/generate-boards.mts",
     "generate:dictionary": "node scripts/generate-dictionary.mjs",
-    "lint": "eslint src tests vite.config.ts",
+    "lint": "eslint src tests scripts/*.mts vite.config.ts",
     "start": "vite",
     "preview": "vite preview",
     "test": "vitest run",

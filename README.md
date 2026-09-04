@@ -39,8 +39,31 @@ the compact `assets/playable-words.json` file consumed by the app. Third-party
 notices are preserved in `public/THIRD_PARTY_NOTICES.txt`.
 
 ## Board generation
-1. Boards are currently defined statically in `src/config.ts`.
-2. High scores are stored locally per board.
+
+Boards are selected from a checked-in, reproducible pool in
+`assets/generated-boards.json`. Each candidate is solved exactly against the
+playable dictionary, then a seeded simulated-annealing search rearranges a
+fixed English-frequency letter pool to increase the number of unique words.
+Generation happens offline so the search never delays application startup or
+next-board navigation.
+
+Regenerate the default eight-board pool with:
+
+```sh
+npm run generate:boards
+```
+
+The command uses a fixed seed and evaluation budget, records independently
+checkable quality metrics, and rejects boards below the checked-in word-count,
+potential-score, long-word, cell-coverage, and tile-disjoint thresholds. The
+same dictionary and options produce byte-identical output. Use `-- --help` to
+see optional seed, count, evaluation-budget, and output arguments. Regenerate
+the dictionary first if its source data changes. Potential score is the sum of
+all independently traceable words' values; because accepted words lock their
+tiles, it is a comparison metric rather than an attainable round score.
+
+High scores are stored locally per board using stable IDs derived from the
+generator version and exact letter layout.
 
 ## User interface
 1. Clear and uncluttered UI for the current timer, current score, all-time high score for this board, current board state (letters already part of words should be highlighted differently), already selected words.
@@ -76,6 +99,8 @@ Use `npm run preview` to serve the production build locally.
 ## Architecture
 
 - `src/App.tsx` composes the game interface from focused React components.
+- `src/board-generation.ts` contains the exact board solver, quality analysis,
+  and deterministic search used by the offline generator.
 - `src/hooks/` owns dictionary loading, round timing, and pointer-controller
   lifecycles.
 - `src/game-state.ts`, `src/rules.ts`, and `src/selection.ts` contain the typed,
@@ -85,18 +110,20 @@ Use `npm run preview` to serve the production build locally.
 ## Manual playtesting
 
 Hold the primary mouse button (or a finger on a touch screen), trace through
-neighboring tiles, and release to submit. On the initial garden board, the first
-three tiles in the top row spell `CAT` and provide a quick scoring check. Before
-time runs out, select Play again and verify that the current board starts a
-fresh 60-second round. After time expires, verify that moving to a new board
-also starts a fresh round. Board high scores are retained in browser storage.
+neighboring tiles, and release to submit. On board 1 of the default generated
+pool, row 2 column 2 through row 2 column 3 and then row 3 column 2 spell `CAT`
+and provide a quick scoring check. Before time runs out, select Play again and
+verify that the current board starts a fresh 60-second round. After time
+expires, verify that moving to a new board also starts a fresh round. Board high
+scores are retained in browser storage.
 
 ## Coding style
 Follow https://www.conventionalcommits.org/en/v1.0.0/ for commit messages. Each commit should be small and do one specific thing.
 
 ## Backlog
 
-1. Dynamically generated boards.
+1. Generate an unlimited stream of boards in a Web Worker, retaining the
+   checked-in pool as an immediate fallback.
 2. For the initial prototype, everything is on the client. If we do add server support, we could add things like:
    1. Each board, dynamically or statically generated, is persisted on the server.
    2. Global hiscores for each board.

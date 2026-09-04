@@ -13,10 +13,11 @@ import {
   type GameController,
   type StatusMessage,
 } from "./hooks/use-game";
-import type { Coordinate } from "./types";
+import type { BoardDefinition, Coordinate } from "./types";
 
 interface AppProps {
   readonly dictionaryLoader?: DictionaryLoader;
+  readonly boards?: readonly BoardDefinition[];
 }
 
 const LOADING_STATUS: StatusMessage = {
@@ -34,14 +35,25 @@ const EMPTY_USED_CELLS = new Set<string>();
 const selectionDisabled = () => false;
 const ignorePath: (path: readonly Coordinate[]) => void = () => {};
 
+function boardCollectionKey(boards: readonly BoardDefinition[]): string {
+  return JSON.stringify(
+    boards.map(({ id, letters }) => [
+      id,
+      letters.map((row) => row.join("")),
+    ]),
+  );
+}
+
 interface GameScreenProps {
+  readonly fallbackBoard: BoardDefinition;
   readonly game?: GameController;
   readonly status: StatusMessage;
   readonly onRetry?: () => void;
 }
 
-function GameScreen({ game, status, onRetry }: GameScreenProps) {
-  const board = game?.board ?? BOARDS[0]!;
+function GameScreen({ fallbackBoard, game, status, onRetry }: GameScreenProps) {
+  const board = game?.board ?? fallbackBoard;
+  const boardLabel = board.label ?? `${board.id} board`;
   const snapshot = game?.snapshot ?? null;
 
   return (
@@ -58,7 +70,7 @@ function GameScreen({ game, status, onRetry }: GameScreenProps) {
       <div className="game-layout">
         <section className="board-panel" aria-labelledby="board-name">
           <div className="board-heading">
-            <h2 id="board-name">{board.id} board</h2>
+            <h2 id="board-name">{boardLabel}</h2>
             <div className="board-feedback">
               {game?.currentWord && (
                 <output id="current-word" aria-label="Current word">
@@ -113,20 +125,37 @@ function GameScreen({ game, status, onRetry }: GameScreenProps) {
   );
 }
 
-function ReadyGame({ dictionary }: { readonly dictionary: ReadonlySet<string> }) {
-  const game = useGame(dictionary);
-  return <GameScreen game={game} status={game.status} />;
+interface ReadyGameProps {
+  readonly boards: readonly BoardDefinition[];
+  readonly dictionary: ReadonlySet<string>;
 }
 
-export function App({ dictionaryLoader = loadDictionary }: AppProps) {
+function ReadyGame({ boards, dictionary }: ReadyGameProps) {
+  const game = useGame(dictionary, boards);
+  return (
+    <GameScreen fallbackBoard={boards[0]!} game={game} status={game.status} />
+  );
+}
+
+export function App({ dictionaryLoader = loadDictionary, boards = BOARDS }: AppProps) {
+  const fallbackBoard = boards[0];
+  if (!fallbackBoard) throw new RangeError("At least one board is required");
+
   const dictionaryState = useDictionary(dictionaryLoader);
 
   if (dictionaryState.status === "ready") {
-    return <ReadyGame dictionary={dictionaryState.dictionary} />;
+    return (
+      <ReadyGame
+        key={boardCollectionKey(boards)}
+        boards={boards}
+        dictionary={dictionaryState.dictionary}
+      />
+    );
   }
 
   return (
     <GameScreen
+      fallbackBoard={fallbackBoard}
       status={
         dictionaryState.status === "error"
           ? LOAD_ERROR_STATUS

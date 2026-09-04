@@ -11,9 +11,34 @@ import { describe, expect, test, vi } from "vitest";
 
 import { App } from "../src/App";
 import { dictionaryFromArray } from "../src/dictionary";
+import type { BoardDefinition } from "../src/types";
 import { setElementAtPoint } from "./setup";
 
 const READY_MESSAGE = "Hold and drag across neighboring letters to make a word.";
+const TEST_BOARDS: readonly BoardDefinition[] = [
+  {
+    id: "garden",
+    letters: [
+      [..."CATERS"],
+      [..."DOGING"],
+      [..."BIRDLY"],
+      [..."MOUSEN"],
+      [..."PLANTO"],
+      [..."STONER"],
+    ],
+  },
+  {
+    id: "seaside",
+    letters: [
+      [..."SEATRE"],
+      [..."WAVELP"],
+      [..."SHELLO"],
+      [..."CORALN"],
+      [..."TIDESD"],
+      [..."FISHER"],
+    ],
+  },
+];
 
 interface Deferred<T> {
   readonly promise: Promise<T>;
@@ -74,7 +99,7 @@ async function renderReady(dictionary = new Set(["cat"])) {
   const dictionaryLoader = vi.fn(() => Promise.resolve(dictionary));
   const result = render(
     <StrictMode>
-      <App dictionaryLoader={dictionaryLoader} />
+      <App boards={TEST_BOARDS} dictionaryLoader={dictionaryLoader} />
     </StrictMode>,
   );
 
@@ -87,7 +112,9 @@ async function renderReadyWithFakeTimers(
 ) {
   vi.useFakeTimers();
   const request = deferred<Set<string>>();
-  const result = render(<App dictionaryLoader={() => request.promise} />);
+  const result = render(
+    <App boards={TEST_BOARDS} dictionaryLoader={() => request.promise} />,
+  );
 
   await act(async () => {
     request.resolve(dictionary);
@@ -114,7 +141,7 @@ describe("App", () => {
 
     render(
       <StrictMode>
-        <App dictionaryLoader={dictionaryLoader} />
+        <App boards={TEST_BOARDS} dictionaryLoader={dictionaryLoader} />
       </StrictMode>,
     );
 
@@ -143,7 +170,7 @@ describe("App", () => {
       .mockResolvedValueOnce(new Set(["cat"]));
     const user = userEvent.setup();
 
-    render(<App dictionaryLoader={dictionaryLoader} />);
+    render(<App boards={TEST_BOARDS} dictionaryLoader={dictionaryLoader} />);
 
     const retry = await screen.findByRole("button", {
       name: "Retry dictionary",
@@ -370,13 +397,33 @@ describe("App", () => {
     expect(third).toBeEnabled();
   });
 
+  test("starts a fresh session when the supplied board collection changes", async () => {
+    const dictionaryLoader = vi.fn(() => Promise.resolve(new Set(["cat"])));
+    const { rerender } = render(
+      <App boards={TEST_BOARDS} dictionaryLoader={dictionaryLoader} />,
+    );
+
+    expect(await screen.findByText(READY_MESSAGE)).toBeInTheDocument();
+    traceCells(...boardCells().slice(0, 3));
+    expect(screen.getByText("1", { selector: "#score-value" })).toBeInTheDocument();
+
+    rerender(
+      <App boards={[TEST_BOARDS[1]!]} dictionaryLoader={dictionaryLoader} />,
+    );
+
+    expect(screen.getByRole("heading", { name: "seaside board" })).toBeInTheDocument();
+    expect(screen.getByText("0", { selector: "#score-value" })).toBeInTheDocument();
+    expect(screen.getByText("1:00", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(screen.getByText("Your words will appear here.")).toBeInTheDocument();
+  });
+
   test("expires a round and can advance to the next board", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-03T12:00:00Z"));
     const request = deferred<Set<string>>();
     const dictionaryLoader = vi.fn(() => request.promise);
 
-    render(<App dictionaryLoader={dictionaryLoader} />);
+    render(<App boards={TEST_BOARDS} dictionaryLoader={dictionaryLoader} />);
     await act(async () => {
       request.resolve(new Set(["cat"]));
       await request.promise;
@@ -446,7 +493,7 @@ describe("App", () => {
 
     render(
       <StrictMode>
-        <App dictionaryLoader={() => request.promise} />
+        <App boards={TEST_BOARDS} dictionaryLoader={() => request.promise} />
       </StrictMode>,
     );
     await act(async () => {
@@ -484,7 +531,9 @@ describe("App", () => {
     vi.setSystemTime(new Date("2026-09-03T12:00:00Z"));
     const request = deferred<Set<string>>();
 
-    render(<App dictionaryLoader={() => request.promise} />);
+    render(
+      <App boards={TEST_BOARDS} dictionaryLoader={() => request.promise} />,
+    );
     fireEvent.blur(window);
     await act(async () => {
       request.resolve(new Set(["cat"]));
