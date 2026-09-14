@@ -4,12 +4,24 @@ A browser-based [Boggle](https://en.wikipedia.org/wiki/Boggle) clone built with
 React 19, TypeScript, and Vite.
 
 ## Gameplay
+
+Zoggle has two modes, selected from the prominent control beside the title:
+
+- **Classic** locks every tile used in an accepted word for the rest of the
+  round.
+- **Endless** immediately replaces the tiles in an accepted word and leaves
+  those positions available for another word. Replacement letters are chosen
+  from the same English-frequency pool used to seed generated boards, with a
+  different letter preferred at each position.
+
+Both modes share these rules:
+
 1. Timer of 60 seconds. This is configurable in code.
 2. Find as many words as possible on the NxN board. N=6 for now. This is easy to tune in TypeScript.
    1. Words must be at least 3 letters long and exist in the dictionary.
    2. Each letter after the first must be a horizontal, vertical, or diagonal neighbor of the one before it.
    3. No capitalized (e.g., acronyms) or hyphenated words are allowed.
-   4. No individual tile may be used more than once in a round. UI should make this clear.
+   4. No individual tile may be used more than once within one word.
    5. Scoring:
 
       1. 3-4 letters: 1 point
@@ -63,11 +75,15 @@ potential-score, long-word, cell-coverage, and tile-disjoint thresholds. The
 same dictionary and options produce byte-identical output. Use `-- --help` to
 see optional seed, count, evaluation-budget, and output arguments. Regenerate
 the dictionary first if its source data changes. Potential score is the sum of
-all independently traceable words' values; because accepted words lock their
-tiles, it is a comparison metric rather than an attainable round score.
+all independently traceable words' values; in Classic, accepted words lock
+their tiles, so it is a comparison metric rather than an attainable round
+score.
 
-High scores are stored locally per board using stable IDs derived from the
-generator version and exact letter layout.
+Endless refills deliberately do not run the full solver or annealing search in
+the gameplay path. They sample only the played positions from the same weighted
+letter pool, making the work proportional to word length and keeping each
+refill instant. High scores are stored locally per board and mode using stable
+IDs derived from the generator version and starting layout.
 
 ## User interface
 1. Clear and uncluttered UI for the current timer, current score, all-time high score for this board, current board state (letters already part of words should be highlighted differently), already selected words.
@@ -105,6 +121,8 @@ Use `npm run preview` to serve the production build locally.
 - `src/App.tsx` composes the game interface from focused React components.
 - `src/board-generation.ts` contains the exact board solver, quality analysis,
   and deterministic search used by the offline generator.
+- `src/endless-board.ts` contains the bounded, immutable Endless tile-refill
+  logic.
 - `src/generate-board.worker.ts` runs opt-in fresh-board searches away from the
   browser's main thread.
 - `src/hooks/` owns dictionary loading, round timing, and pointer-controller
@@ -118,10 +136,12 @@ Use `npm run preview` to serve the production build locally.
 Hold the primary mouse button (or a finger on a touch screen), trace through
 neighboring tiles, and release to submit. On board 1 of the default generated
 pool, row 2 column 2 through row 2 column 3 and then row 3 column 2 spell `CAT`
-and provide a quick scoring check. Before time runs out, select Play again and
-verify that the current board starts a fresh 60-second round. After time
-expires, verify that moving to a new board also starts a fresh round. Board high
-scores are retained in browser storage.
+and provide a quick scoring check. In Classic, verify those tiles become
+unavailable. Switch to Endless, submit a word, and verify its positions animate
+in with new letters and remain available. Switching modes starts a clean round,
+and Play again restores the starting board. After time expires, verify that
+moving to a new board also starts a fresh round. Board-and-mode high scores are
+retained in browser storage.
 
 Use **Generate fresh board** to search for a new layout that is not in the
 checked-in pool. The current board remains playable while the search runs, and

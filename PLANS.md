@@ -9,8 +9,8 @@ load in the browser.
 For this work, a **traceable word** is a unique playable dictionary word that
 can be formed by an eight-directional path without reusing a tile within that
 path. Each word is counted independently. This is deliberately distinct from
-the number a player can submit in one round: the current game permanently
-locks tiles after an accepted word, so no more than 12 three-letter words can
+the number a player can submit in one Classic round: Classic permanently locks
+tiles after an accepted word, so no more than 12 three-letter words can
 be collected from 36 tiles. “Potential score” below likewise means the sum of
 each independently traceable word's value, not an attainable round score.
 
@@ -74,10 +74,13 @@ The current exact baselines are:
 
 - The main page can now generate fresh boards on demand. The bounded search runs
   in a Web Worker and retains the checked-in pool as an immediate fallback.
+- Endless mode replenishes accepted paths from the generator's weighted letter
+  pool without running an expensive board search during play.
 
 ## Possible follow-ups
 
 - Rank with a frequency-labelled common-word corpus so familiar words count
   more than obscure Webster entries.
-- Revisit the cross-word tile-locking rule if conventional Boggle behavior is
-  desired; doing so changes the gameplay model rather than board generation.
+- Revisit Classic's cross-word tile-locking rule if conventional Boggle
+  behavior is desired; doing so changes the gameplay model rather than board
+  generation.
