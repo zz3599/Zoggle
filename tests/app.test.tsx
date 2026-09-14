@@ -187,6 +187,15 @@ describe("App", () => {
     );
 
     expect(screen.getByText("Loading dictionary…")).toBeInTheDocument();
+    expect(screen.getByText("Game mode")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Classic/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /Endless/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     expect(boardCells()).toHaveLength(36);
     expect(boardCells()[0]).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Play again" })).toBeNull();
@@ -409,6 +418,135 @@ describe("App", () => {
     expect(screen.getByText("0", { selector: "#score-value" })).toBeInTheDocument();
     expect(first).toBeEnabled();
     expect(second).toBeEnabled();
+  });
+
+  test("switches visibly between Classic and Endless with separate rounds", async () => {
+    const user = userEvent.setup();
+    await renderReady();
+    const endless = screen.getByRole("button", { name: /Endless/ });
+
+    traceCells(...boardCells().slice(0, 3));
+    expect(screen.getByText("1", { selector: "#score-value" })).toBeInTheDocument();
+
+    await user.click(endless);
+
+    expect(screen.getByRole("button", { name: /Classic/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: /Endless/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByText("0", { selector: "#score-value" })).toBeInTheDocument();
+    expect(screen.getByText("0", { selector: "#high-score-value" })).toBeInTheDocument();
+    expect(screen.getByText("1:00", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "C, row 1, column 1" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Endless/ })).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: /Classic/ }));
+
+    expect(screen.getByRole("button", { name: /Classic/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /Endless/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByText("0", { selector: "#score-value" })).toBeInTheDocument();
+    expect(screen.getByText("1", { selector: "#high-score-value" })).toBeInTheDocument();
+  });
+
+  test("replenishes accepted Endless paths and lets their positions score again", async () => {
+    const randomValues = [
+      0.11714285714285713,
+      0.5787878787878789,
+      0.36666666666666664,
+      0,
+      0,
+      0,
+    ];
+    const endlessTileRandom = vi.fn(() => randomValues.shift() ?? 0);
+    const user = userEvent.setup();
+    render(
+      <App
+        boards={TEST_BOARDS}
+        dictionaryLoader={() => Promise.resolve(new Set(["cat", "dog"]))}
+        endlessTileRandom={endlessTileRandom}
+      />,
+    );
+    expect(await screen.findByText(READY_MESSAGE)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Endless/ }));
+    traceCells(...boardCells().slice(0, 3));
+
+    expect(
+      screen.getByText("CAT", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("+1 point · 3 tiles refilled")).toBeInTheDocument();
+    expect(endlessTileRandom).toHaveBeenCalledTimes(3);
+    const dogCells = boardCells().slice(0, 3);
+    expect(dogCells.map((cell) => cell.textContent)).toEqual(["D", "O", "G"]);
+    for (const cell of dogCells) {
+      expect(cell).toBeEnabled();
+      expect(cell).toHaveClass("cell--replenished");
+    }
+
+    fireEvent.pointerDown(dogCells[0]!, {
+      button: 0,
+      pointerId: 12,
+      ...mockCellCenter(dogCells[0]!),
+    });
+    expect(document.querySelector(".cell--replenished")).toBeNull();
+    fireEvent.pointerCancel(document, { pointerId: 12 });
+
+    traceCells(...dogCells);
+
+    expect(
+      screen.getByText("DOG", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2", { selector: "#score-value" })).toBeInTheDocument();
+    expect(screen.getByText("cat", { selector: "li" })).toBeInTheDocument();
+    expect(screen.getByText("dog", { selector: "li" })).toBeInTheDocument();
+    expect(endlessTileRandom).toHaveBeenCalledTimes(6);
+  });
+
+  test("does not replenish a rejected Endless path and replay restores its seed board", async () => {
+    const endlessTileRandom = vi.fn(() => 0);
+    const user = userEvent.setup();
+    render(
+      <App
+        boards={TEST_BOARDS}
+        dictionaryLoader={() => Promise.resolve(new Set(["cat"]))}
+        endlessTileRandom={endlessTileRandom}
+      />,
+    );
+    expect(await screen.findByText(READY_MESSAGE)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Endless/ }));
+
+    traceCells(...boardCells().slice(0, 2));
+    expect(screen.getByText("Words need at least three letters.")).toBeInTheDocument();
+    expect(boardCells().slice(0, 3).map((cell) => cell.textContent)).toEqual([
+      "C",
+      "A",
+      "T",
+    ]);
+    expect(endlessTileRandom).not.toHaveBeenCalled();
+
+    traceCells(...boardCells().slice(0, 3));
+    expect(boardCells().slice(0, 3).map((cell) => cell.textContent)).not.toEqual([
+      "C",
+      "A",
+      "T",
+    ]);
+    await user.click(screen.getByRole("button", { name: "Play again" }));
+    expect(boardCells().slice(0, 3).map((cell) => cell.textContent)).toEqual([
+      "C",
+      "A",
+      "T",
+    ]);
+    for (const cell of boardCells().slice(0, 3)) expect(cell).toBeEnabled();
   });
 
   test("restarts an active round while retaining its high score", async () => {

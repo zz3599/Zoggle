@@ -2,13 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BOARDS, ROUND_SECONDS } from "../config";
 import {
+  replenishBoard,
+  type RandomSource,
+} from "../endless-board";
+import {
   GameState,
   type RoundSnapshot,
   type SubmissionResult,
   type ValidateWord,
 } from "../game-state";
 import { isEligibleWord, scoreWord, wordFromPath } from "../rules";
-import type { BoardDefinition, Coordinate } from "../types";
+import type { BoardDefinition, Coordinate, GameMode } from "../types";
 
 export type StatusTone = "neutral" | "success" | "error";
 
@@ -24,7 +28,9 @@ interface GameSession {
   readonly feedbackKey: number;
   readonly feedbackWord: string;
   readonly paused: boolean;
+  readonly replenishedCells: readonly string[];
   readonly snapshot: RoundSnapshot;
+  readonly sourceBoard: BoardDefinition;
   readonly roundKey: number;
   readonly status: StatusMessage;
 }
@@ -35,6 +41,7 @@ export interface GameController {
   readonly enabled: boolean;
   readonly isSelectionEnabled: () => boolean;
   readonly path: readonly Coordinate[];
+  readonly replenishedCells: ReadonlySet<string>;
   readonly roundKey: number;
   readonly snapshot: RoundSnapshot;
   readonly status: StatusMessage;
@@ -67,6 +74,14 @@ function boardAt(
   return board;
 }
 
+function scoreBoardId(mode: GameMode, boardId: string): string {
+  return mode === "classic" ? boardId : `endless:${boardId}`;
+}
+
+function cellKey({ row, col }: Coordinate): string {
+  return `${row},${col}`;
+}
+
 function pageHasFocus(): boolean {
   if (typeof document === "undefined") return true;
   return !document.hidden &&
@@ -89,11 +104,18 @@ function validatorFor(dictionary: ReadonlySet<string>): ValidateWord {
   };
 }
 
-function submissionMessage(result: SubmissionResult): StatusMessage {
+function submissionMessage(
+  result: SubmissionResult,
+  replenishedCellCount = 0,
+): StatusMessage {
   if (result.accepted) {
     const suffix = result.points === 1 ? "point" : "points";
     return {
-      text: `+${result.points} ${suffix}`,
+      text: `+${result.points} ${suffix}${
+        replenishedCellCount > 0
+          ? ` · ${replenishedCellCount} tiles refilled`
+          : ""
+      }`,
       tone: "success",
     };
   }
@@ -125,11 +147,14 @@ function roundCompleteStatus(score: number): StatusMessage {
 export function useGame(
   dictionary: ReadonlySet<string>,
   boards: readonly BoardDefinition[] = BOARDS,
+  mode: GameMode = "classic",
+  endlessTileRandom: RandomSource = Math.random,
 ): GameController {
   const [session, setSession] = useState<GameSession>(() => {
     const board = boardAt(boards, 0);
     const game = new GameState({
-      boardId: board.id,
+      boardId: scoreBoardId(mode, board.id),
+      consumeCells: mode === "classic",
       durationMs: ROUND_SECONDS * 1000,
       validateWord: validatorFor(dictionary),
       scoreWord,
@@ -142,7 +167,9 @@ export function useGame(
       feedbackKey: 0,
       feedbackWord: "",
       paused: game.isPaused(),
+      replenishedCells: [],
       snapshot,
+      sourceBoard: board,
       roundKey: 0,
       status: READY_STATUS,
     };
@@ -270,9 +297,11 @@ export function useGame(
     const boardIndex = advanceBoard
       ? (current.boardIndex + 1) % boards.length
       : current.boardIndex;
-    const board = advanceBoard ? boardAt(boards, boardIndex) : current.board;
+    const board = advanceBoard
+      ? boardAt(boards, boardIndex)
+      : current.sourceBoard;
     let snapshot = current.game.resetRound({
-      boardId: board.id,
+      boardId: scoreBoardId(mode, board.id),
       durationMs: ROUND_SECONDS * 1000,
     });
     if (!pageHasFocus()) snapshot = current.game.pause();
@@ -284,11 +313,13 @@ export function useGame(
       feedbackKey: current.feedbackKey + 1,
       feedbackWord: "",
       paused: current.game.isPaused(),
+      replenishedCells: [],
       snapshot,
+      sourceBoard: board,
       roundKey: current.roundKey + 1,
       status: READY_STATUS,
     });
-  }, [boards, commitSession]);
+  }, [boards, commitSession, mode]);
 
   const board = session.board;
   const pathWord = useMemo(() => {
@@ -307,12 +338,20 @@ export function useGame(
     const current = sessionRef.current;
     const hasSuccessFeedback =
       Boolean(current.feedbackWord) && current.status.tone === "success";
-    if (!hasSuccessFeedback && current.status !== READY_STATUS) return;
+    const hasReplenishmentMarker = current.replenishedCells.length > 0;
+    if (
+      !hasSuccessFeedback &&
+      current.status !== READY_STATUS &&
+      !hasReplenishmentMarker
+    ) {
+      return;
+    }
 
     commitSession({
       ...current,
       feedbackKey: current.feedbackKey + 1,
       feedbackWord: "",
+      replenishedCells: [],
       status: EMPTY_STATUS,
     });
   }, [commitSession]);
@@ -334,23 +373,30 @@ export function useGame(
     }
 
     const result = current.game.submitWord({ word, cells: submittedPath });
+    const replenished = result.accepted && mode === "endless";
     commitSession({
       ...current,
+      board: replenished
+        ? replenishBoard(currentBoard, submittedPath, {
+            random: endlessTileRandom,
+          })
+        : currentBoard,
       feedbackKey: current.feedbackKey + 1,
       feedbackWord: result.accepted ? result.word : "",
+      replenishedCells: replenished ? submittedPath.map(cellKey) : [],
       snapshot: result.state,
       status: result.state.expired
         ? roundCompleteStatus(result.state.score)
-        : submissionMessage(result),
+        : submissionMessage(result, replenished ? submittedPath.length : 0),
     });
-  }, [commitSession]);
+  }, [commitSession, endlessTileRandom, mode]);
 
   const playAgain = useCallback(() => resetRound(false), [resetRound]);
   const playBoard = useCallback((board: BoardDefinition) => {
     const current = sessionRef.current;
     setPath([]);
     let snapshot = current.game.resetRound({
-      boardId: board.id,
+      boardId: scoreBoardId(mode, board.id),
       durationMs: ROUND_SECONDS * 1000,
     });
     if (!pageHasFocus()) snapshot = current.game.pause();
@@ -361,11 +407,13 @@ export function useGame(
       feedbackKey: current.feedbackKey + 1,
       feedbackWord: "",
       paused: current.game.isPaused(),
+      replenishedCells: [],
       snapshot,
+      sourceBoard: board,
       roundKey: current.roundKey + 1,
       status: READY_STATUS,
     });
-  }, [commitSession]);
+  }, [commitSession, mode]);
   const playNextBoard = useCallback(() => resetRound(true), [resetRound]);
   const isSelectionEnabled = useCallback(() => {
     const current = sessionRef.current;
@@ -374,6 +422,7 @@ export function useGame(
 
   const { snapshot } = session;
   const usedCells = new Set(snapshot.usedCells);
+  const replenishedCells = new Set(session.replenishedCells);
 
   return {
     board,
@@ -381,6 +430,7 @@ export function useGame(
     enabled: !snapshot.expired,
     isSelectionEnabled,
     path,
+    replenishedCells,
     roundKey: session.roundKey,
     snapshot,
     status: session.status,

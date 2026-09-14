@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Board } from "./components/Board";
 import { FoundWords } from "./components/FoundWords";
+import { GameModeSelector } from "./components/GameModeSelector";
 import {
   RoundActions,
   type FreshBoardStatus,
@@ -13,6 +14,7 @@ import {
   generateFreshBoard,
   type FreshBoardGenerator,
 } from "./fresh-board";
+import type { RandomSource } from "./endless-board";
 import {
   useDictionary,
   type DictionaryLoader,
@@ -22,12 +24,13 @@ import {
   type GameController,
   type StatusMessage,
 } from "./hooks/use-game";
-import type { BoardDefinition, Coordinate } from "./types";
+import type { BoardDefinition, Coordinate, GameMode } from "./types";
 
 interface AppProps {
   readonly dictionaryLoader?: DictionaryLoader;
   readonly boards?: readonly BoardDefinition[];
   readonly freshBoardGenerator?: FreshBoardGenerator;
+  readonly endlessTileRandom?: RandomSource;
 }
 
 const LOADING_STATUS: StatusMessage = {
@@ -81,14 +84,7 @@ function GameScreen({
   const snapshot = game?.snapshot ?? null;
 
   return (
-    <main id="game" className="game-shell">
-      <header className="game-header">
-        <div>
-          <p className="eyebrow">A quick word hunt</p>
-          <h1>Zoggle</h1>
-        </div>
-      </header>
-
+    <>
       <Stats snapshot={snapshot} />
 
       <div className="game-layout">
@@ -117,6 +113,7 @@ function GameScreen({
             enabled={game?.enabled ?? false}
             isEnabled={game?.isSelectionEnabled ?? selectionDisabled}
             path={game?.path ?? EMPTY_PATH}
+            replenishedCells={game?.replenishedCells ?? EMPTY_USED_CELLS}
             resetKey={game?.roundKey ?? 0}
             usedCells={game?.usedCells ?? EMPTY_USED_CELLS}
             onPathChange={game?.onPathChange ?? ignorePath}
@@ -147,7 +144,7 @@ function GameScreen({
 
         <FoundWords words={snapshot?.foundWords ?? []} />
       </div>
-    </main>
+    </>
   );
 }
 
@@ -155,14 +152,18 @@ interface ReadyGameProps {
   readonly boards: readonly BoardDefinition[];
   readonly dictionary: ReadonlySet<string>;
   readonly freshBoardGenerator: FreshBoardGenerator;
+  readonly endlessTileRandom: RandomSource;
+  readonly mode: GameMode;
 }
 
 function ReadyGame({
   boards,
   dictionary,
   freshBoardGenerator,
+  endlessTileRandom,
+  mode,
 }: ReadyGameProps) {
-  const game = useGame(dictionary, boards);
+  const game = useGame(dictionary, boards, mode, endlessTileRandom);
   const { playAgain, playBoard, playNextBoard } = game;
   const [freshBoardStatus, setFreshBoardStatus] =
     useState<FreshBoardStatus>("idle");
@@ -239,34 +240,49 @@ export function App({
   dictionaryLoader = loadDictionary,
   boards = BOARDS,
   freshBoardGenerator = generateFreshBoard,
+  endlessTileRandom = Math.random,
 }: AppProps) {
   const fallbackBoard = boards[0];
   if (!fallbackBoard) throw new RangeError("At least one board is required");
 
   const dictionaryState = useDictionary(dictionaryLoader);
+  const [mode, setMode] = useState<GameMode>("classic");
 
-  if (dictionaryState.status === "ready") {
-    return (
+  const gameScreen = dictionaryState.status === "ready"
+    ? (
       <ReadyGame
-        key={boardCollectionKey(boards)}
+        key={`${boardCollectionKey(boards)}:${mode}`}
         boards={boards}
         dictionary={dictionaryState.dictionary}
+        endlessTileRandom={endlessTileRandom}
         freshBoardGenerator={freshBoardGenerator}
+        mode={mode}
+      />
+    )
+    : (
+      <GameScreen
+        fallbackBoard={fallbackBoard}
+        status={
+          dictionaryState.status === "error"
+            ? LOAD_ERROR_STATUS
+            : LOADING_STATUS
+        }
+        onRetry={
+          dictionaryState.status === "error" ? dictionaryState.retry : undefined
+        }
       />
     );
-  }
 
   return (
-    <GameScreen
-      fallbackBoard={fallbackBoard}
-      status={
-        dictionaryState.status === "error"
-          ? LOAD_ERROR_STATUS
-          : LOADING_STATUS
-      }
-      onRetry={
-        dictionaryState.status === "error" ? dictionaryState.retry : undefined
-      }
-    />
+    <main id="game" className="game-shell">
+      <header className="game-header">
+        <div>
+          <p className="eyebrow">A quick word hunt</p>
+          <h1>Zoggle</h1>
+        </div>
+        <GameModeSelector mode={mode} onChange={setMode} />
+      </header>
+      {gameScreen}
+    </main>
   );
 }

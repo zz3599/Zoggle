@@ -51,6 +51,73 @@ button:focus-visible {
   margin-bottom: 1.5rem;
 }
 
+.mode-selector {
+  width: min(100%, 27rem);
+  flex: 0 1 27rem;
+}
+
+.mode-selector__label {
+  margin-bottom: 0.35rem;
+  color: #66736e;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.mode-selector__options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.mode-option {
+  display: grid;
+  min-height: 4.25rem;
+  align-content: center;
+  gap: 0.15rem;
+  border: 1px solid #b9b9ae;
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.85rem;
+  color: #31594f;
+  background: rgb(255 255 255 / 72%);
+  box-shadow: 0 0.35rem 1rem rgb(38 57 48 / 5%);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    color 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+
+.mode-option:hover {
+  border-color: #6d8a81;
+  transform: translateY(-1px);
+}
+
+.mode-option[aria-pressed="true"] {
+  border-color: #295d51;
+  color: #fff;
+  background: #295d51;
+  box-shadow: 0 0.45rem 1.2rem rgb(41 93 81 / 20%);
+}
+
+.mode-option__name {
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.mode-option__description {
+  color: #687972;
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.mode-option[aria-pressed="true"] .mode-option__description {
+  color: rgb(255 255 255 / 78%);
+}
+
 .eyebrow {
   margin: 0 0 0.25rem;
   color: #bf5b42;
@@ -256,6 +323,22 @@ h2 {
   transform: translateY(2px) scale(0.97);
 }
 
+.cell--replenished:not(.cell--active) {
+  animation: replenish-tile 300ms ease-out;
+}
+
+@keyframes replenish-tile {
+  from {
+    opacity: 0.35;
+    transform: scale(0.72) translateY(-0.35rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 .cell:disabled {
   cursor: default;
 }
@@ -410,6 +493,11 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .mode-selector {
+    width: 100%;
+    flex-basis: auto;
+  }
+
   .round-actions__buttons {
     margin-left: 0;
   }
@@ -454,7 +542,12 @@ h2 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cell {
+  .cell,
+  .mode-option {
     transition: none;
+  }
+
+  .cell--replenished:not(.cell--active) {
+    animation: none;
   }
 }

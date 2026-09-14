@@ -8,6 +8,7 @@ interface BoardProps {
   readonly enabled: boolean;
   readonly isEnabled: () => boolean;
   readonly path: readonly Coordinate[];
+  readonly replenishedCells: ReadonlySet<string>;
   readonly resetKey: number;
   readonly usedCells: ReadonlySet<string>;
   readonly onPathChange: (path: readonly Coordinate[]) => void;
@@ -23,6 +24,7 @@ export function Board({
   enabled,
   isEnabled,
   path,
+  replenishedCells,
   resetKey,
   usedCells,
   onPathChange,
@@ -60,17 +62,19 @@ export function Board({
           const key = `${rowIndex},${colIndex}`;
           const used = usedCells.has(key);
           const active = activeCells.has(key);
+          const replenished = replenishedCells.has(key);
           const className = [
             "cell",
             used && "cell--used",
             active && "cell--active",
+            replenished && "cell--replenished",
           ]
             .filter(Boolean)
             .join(" ");
 
           return (
             <button
-              key={key}
+              key={`${key}:${letter}`}
               type="button"
               className={className}
               data-row={rowIndex}
