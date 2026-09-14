@@ -44,8 +44,12 @@ Boards are selected from a checked-in, reproducible pool in
 `assets/generated-boards.json`. Each candidate is solved exactly against the
 playable dictionary, then a seeded simulated-annealing search rearranges a
 fixed English-frequency letter pool to increase the number of unique words.
-Generation happens offline so the search never delays application startup or
-next-board navigation.
+The checked-in pool is generated offline, so application startup and saved-board
+navigation remain instant. The **Generate fresh board** action runs an independent
+bounded search in a Web Worker. It keeps the current round available while it
+searches, enforces the same quality floors, avoids saved layouts and boards
+generated earlier in the current page session, and starts a new round only after
+a valid board is ready.
 
 Regenerate the default eight-board pool with:
 
@@ -101,6 +105,8 @@ Use `npm run preview` to serve the production build locally.
 - `src/App.tsx` composes the game interface from focused React components.
 - `src/board-generation.ts` contains the exact board solver, quality analysis,
   and deterministic search used by the offline generator.
+- `src/generate-board.worker.ts` runs opt-in fresh-board searches away from the
+  browser's main thread.
 - `src/hooks/` owns dictionary loading, round timing, and pointer-controller
   lifecycles.
 - `src/game-state.ts`, `src/rules.ts`, and `src/selection.ts` contain the typed,
@@ -117,16 +123,18 @@ verify that the current board starts a fresh 60-second round. After time
 expires, verify that moving to a new board also starts a fresh round. Board high
 scores are retained in browser storage.
 
+Use **Generate fresh board** to search for a new layout that is not in the
+checked-in pool. The current board remains playable while the search runs, and
+the generation can be cancelled without losing the current round.
+
 ## Coding style
 Follow https://www.conventionalcommits.org/en/v1.0.0/ for commit messages. Each commit should be small and do one specific thing.
 
 ## Backlog
 
-1. Generate an unlimited stream of boards in a Web Worker, retaining the
-   checked-in pool as an immediate fallback.
-2. For the initial prototype, everything is on the client. If we do add server support, we could add things like:
+1. For the initial prototype, everything is on the client. If we do add server support, we could add things like:
    1. Each board, dynamically or statically generated, is persisted on the server.
    2. Global hiscores for each board.
    3. Compare with friends hiscores for the board.
-3. Add selected proper nouns such as names and cities that are absent from the
+2. Add selected proper nouns such as names and cities that are absent from the
    source dictionary. In the canonical example, `RENO` should be accepted.

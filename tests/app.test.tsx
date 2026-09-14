@@ -10,7 +10,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 
 import { App } from "../src/App";
+import { createBoardId } from "../src/board-id";
 import { dictionaryFromArray } from "../src/dictionary";
+import type { FreshBoardGenerator } from "../src/fresh-board";
 import type { BoardDefinition } from "../src/types";
 import { setElementAtPoint } from "./setup";
 
@@ -39,6 +41,20 @@ const TEST_BOARDS: readonly BoardDefinition[] = [
     ],
   },
 ];
+
+const FRESH_BOARD_ROWS = [
+  "DOGERS",
+  "BODING",
+  "FIRMLY",
+  "HOUSEA",
+  "PLANET",
+  "STOWED",
+];
+const FRESH_BOARD: BoardDefinition = {
+  id: createBoardId(FRESH_BOARD_ROWS),
+  label: "Fresh board",
+  letters: FRESH_BOARD_ROWS.map((row) => [...row]),
+};
 
 interface Deferred<T> {
   readonly promise: Promise<T>;
@@ -395,6 +411,138 @@ describe("App", () => {
     expect(first).toBeEnabled();
     expect(second).toBeEnabled();
     expect(third).toBeEnabled();
+  });
+
+  test("generates a fresh board and starts a clean round on it", async () => {
+    const dictionary = new Set(["cat", "dog"]);
+    const request = deferred<BoardDefinition>();
+    const freshBoardGenerator = vi.fn<FreshBoardGenerator>(
+      () => request.promise,
+    );
+    const user = userEvent.setup();
+
+    render(
+      <App
+        boards={TEST_BOARDS}
+        dictionaryLoader={() => Promise.resolve(dictionary)}
+        freshBoardGenerator={freshBoardGenerator}
+      />,
+    );
+    expect(await screen.findByText(READY_MESSAGE)).toBeInTheDocument();
+
+    traceCells(...boardCells().slice(0, 3));
+    expect(screen.getByText("1", { selector: "#score-value" })).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Generate fresh board" }),
+    );
+
+    expect(freshBoardGenerator).toHaveBeenCalledTimes(1);
+    expect(freshBoardGenerator.mock.calls[0]?.[0]).toBe(dictionary);
+    expect(freshBoardGenerator.mock.calls[0]?.[1]?.excludedBoardIds).toEqual([
+      "garden",
+      "seaside",
+    ]);
+    expect(freshBoardGenerator.mock.calls[0]?.[1]?.signal).toBeInstanceOf(
+      AbortSignal,
+    );
+    expect(screen.getByText("Searching for a fresh board…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel generation" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Play again" })).toBeDisabled();
+    expect(screen.getByRole("heading", { name: "garden board" })).toBeInTheDocument();
+
+    await act(async () => {
+      request.resolve(FRESH_BOARD);
+      await request.promise;
+    });
+
+    expect(screen.getByRole("heading", { name: "Fresh board" })).toBeInTheDocument();
+    expect(screen.getByText("0", { selector: "#score-value" })).toBeInTheDocument();
+    expect(screen.getByText("0", { selector: "#high-score-value" })).toBeInTheDocument();
+    expect(screen.getByText("1:00", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(screen.getByText("Your words will appear here.")).toBeInTheDocument();
+    expect(screen.getByText("Fresh board ready.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Generate fresh board" }),
+    ).toBeEnabled();
+
+    traceCells(...boardCells().slice(0, 3));
+    await user.click(screen.getByRole("button", { name: "Play again" }));
+    expect(screen.getByRole("heading", { name: "Fresh board" })).toBeInTheDocument();
+    expect(screen.getByText("1", { selector: "#high-score-value" })).toBeInTheDocument();
+  });
+
+  test("can cancel generation without changing the current round", async () => {
+    const request = deferred<BoardDefinition>();
+    const freshBoardGenerator = vi.fn<FreshBoardGenerator>(
+      () => request.promise,
+    );
+    const user = userEvent.setup();
+
+    render(
+      <App
+        boards={TEST_BOARDS}
+        dictionaryLoader={() => Promise.resolve(new Set(["cat"]))}
+        freshBoardGenerator={freshBoardGenerator}
+      />,
+    );
+    expect(await screen.findByText(READY_MESSAGE)).toBeInTheDocument();
+    traceCells(...boardCells().slice(0, 3));
+
+    await user.click(
+      screen.getByRole("button", { name: "Generate fresh board" }),
+    );
+    const signal = freshBoardGenerator.mock.calls[0]?.[1]?.signal;
+    await user.click(screen.getByRole("button", { name: "Cancel generation" }));
+
+    expect(signal?.aborted).toBe(true);
+    expect(
+      screen.getByText("Fresh-board generation cancelled."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "garden board" })).toBeInTheDocument();
+    expect(screen.getByText("1", { selector: "#score-value" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Generate fresh board" }),
+    ).toBeEnabled();
+
+    await act(async () => {
+      request.resolve(FRESH_BOARD);
+      await request.promise;
+    });
+    expect(screen.getByRole("heading", { name: "garden board" })).toBeInTheDocument();
+  });
+
+  test("keeps the current round when fresh-board generation fails", async () => {
+    const freshBoardGenerator = vi.fn(() =>
+      Promise.reject(new Error("worker failed")),
+    );
+    const user = userEvent.setup();
+
+    render(
+      <App
+        boards={TEST_BOARDS}
+        dictionaryLoader={() => Promise.resolve(new Set(["cat"]))}
+        freshBoardGenerator={freshBoardGenerator}
+      />,
+    );
+    expect(await screen.findByText(READY_MESSAGE)).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Generate fresh board" }),
+    );
+
+    expect(
+      await screen.findByText("Couldn’t generate a fresh board. Try again."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "garden board" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Generate fresh board" }),
+    ).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Play again" }));
+    expect(
+      screen.queryByText("Couldn’t generate a fresh board. Try again."),
+    ).toBeNull();
   });
 
   test("starts a fresh session when the supplied board collection changes", async () => {

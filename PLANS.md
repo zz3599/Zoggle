@@ -43,9 +43,9 @@ The current exact baselines are:
    checked-in JSON asset. The same inputs must produce byte-identical output.
 4. Load and validate that generated asset in `src/config.ts`; the UI will cycle
    the generated pool exactly as it cycles the static boards today. Stable
-   content-derived IDs keep per-board local high scores correct. Generation is
-   intentionally not run in the browser, where a useful search would cause a
-   noticeable main-thread pause.
+   content-derived IDs keep per-board local high scores correct. Checked-in-pool
+   generation is intentionally not run automatically in the browser, where a
+   useful search on the main thread would cause a noticeable pause.
 5. Add tests that:
    - prove the solver on small fixtures, including diagonals, prefix words,
      duplicate paths, and no tile reuse;
@@ -67,8 +67,13 @@ The current exact baselines are:
 - The generated pool contains at least eight distinct boards and no duplicate
   layouts or IDs.
 - Regenerating with the documented seed and search budget produces no diff.
-- Board search remains an explicit development task; application startup and
-  next-board navigation perform no stochastic optimization.
+- Checked-in-pool search remains an explicit development task; application
+  startup and saved-board navigation perform no stochastic optimization.
+
+## Implemented follow-up
+
+- The main page can now generate fresh boards on demand. The bounded search runs
+  in a Web Worker and retains the checked-in pool as an immediate fallback.
 
 ## Possible follow-ups
 
@@ -76,5 +81,3 @@ The current exact baselines are:
   more than obscure Webster entries.
 - Revisit the cross-word tile-locking rule if conventional Boggle behavior is
   desired; doing so changes the gameplay model rather than board generation.
-- If unlimited fresh boards become a requirement, move the same bounded search
-  into a Web Worker and retain this checked-in pool as an immediate fallback.

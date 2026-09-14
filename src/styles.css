@@ -345,13 +345,22 @@ h2 {
   border-top: 1px solid #ddd8cc;
 }
 
-.round-actions p {
+.round-actions__messages {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.round-actions__messages p {
   margin-bottom: 0;
   color: #b94a35;
   font-weight: 800;
 }
 
-.round-actions div {
+.round-actions__messages p[data-tone="neutral"] {
+  color: #66736e;
+}
+
+.round-actions__buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
@@ -380,6 +389,12 @@ h2 {
   background: transparent;
 }
 
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 #retry-load {
   margin-top: 1rem;
 }
@@ -395,7 +410,7 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  .round-actions div {
+  .round-actions__buttons {
     margin-left: 0;
   }
 
@@ -433,7 +448,7 @@ h2 {
     border-radius: 0.9rem;
   }
 
-  .round-actions div {
+  .round-actions__buttons {
     justify-content: flex-start;
   }
 }

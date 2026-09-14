@@ -1,9 +1,18 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+
 import { Board } from "./components/Board";
 import { FoundWords } from "./components/FoundWords";
-import { RoundActions } from "./components/RoundActions";
+import {
+  RoundActions,
+  type FreshBoardStatus,
+} from "./components/RoundActions";
 import { Stats } from "./components/Stats";
 import { BOARDS } from "./config";
 import { loadDictionary } from "./dictionary";
+import {
+  generateFreshBoard,
+  type FreshBoardGenerator,
+} from "./fresh-board";
 import {
   useDictionary,
   type DictionaryLoader,
@@ -18,6 +27,7 @@ import type { BoardDefinition, Coordinate } from "./types";
 interface AppProps {
   readonly dictionaryLoader?: DictionaryLoader;
   readonly boards?: readonly BoardDefinition[];
+  readonly freshBoardGenerator?: FreshBoardGenerator;
 }
 
 const LOADING_STATUS: StatusMessage = {
@@ -32,6 +42,7 @@ const LOAD_ERROR_STATUS: StatusMessage = {
 
 const EMPTY_PATH: readonly Coordinate[] = [];
 const EMPTY_USED_CELLS = new Set<string>();
+const ignoreAction = () => {};
 const selectionDisabled = () => false;
 const ignorePath: (path: readonly Coordinate[]) => void = () => {};
 
@@ -46,12 +57,25 @@ function boardCollectionKey(boards: readonly BoardDefinition[]): string {
 
 interface GameScreenProps {
   readonly fallbackBoard: BoardDefinition;
+  readonly freshBoardStatus?: FreshBoardStatus;
   readonly game?: GameController;
+  readonly onGenerateFreshBoard?: () => void;
+  readonly onPlayAgain?: () => void;
+  readonly onPlayNextBoard?: () => void;
   readonly status: StatusMessage;
   readonly onRetry?: () => void;
 }
 
-function GameScreen({ fallbackBoard, game, status, onRetry }: GameScreenProps) {
+function GameScreen({
+  fallbackBoard,
+  freshBoardStatus = "idle",
+  game,
+  onGenerateFreshBoard,
+  onPlayAgain,
+  onPlayNextBoard,
+  status,
+  onRetry,
+}: GameScreenProps) {
   const board = game?.board ?? fallbackBoard;
   const boardLabel = board.label ?? `${board.id} board`;
   const snapshot = game?.snapshot ?? null;
@@ -113,8 +137,10 @@ function GameScreen({ fallbackBoard, game, status, onRetry }: GameScreenProps) {
           {snapshot && game && (
             <RoundActions
               expired={snapshot.expired}
-              onPlayAgain={game.playAgain}
-              onPlayNextBoard={game.playNextBoard}
+              freshBoardStatus={freshBoardStatus}
+              onGenerateFreshBoard={onGenerateFreshBoard ?? ignoreAction}
+              onPlayAgain={onPlayAgain ?? game.playAgain}
+              onPlayNextBoard={onPlayNextBoard ?? game.playNextBoard}
             />
           )}
         </section>
@@ -128,16 +154,92 @@ function GameScreen({ fallbackBoard, game, status, onRetry }: GameScreenProps) {
 interface ReadyGameProps {
   readonly boards: readonly BoardDefinition[];
   readonly dictionary: ReadonlySet<string>;
+  readonly freshBoardGenerator: FreshBoardGenerator;
 }
 
-function ReadyGame({ boards, dictionary }: ReadyGameProps) {
+function ReadyGame({
+  boards,
+  dictionary,
+  freshBoardGenerator,
+}: ReadyGameProps) {
   const game = useGame(dictionary, boards);
+  const { playAgain, playBoard, playNextBoard } = game;
+  const [freshBoardStatus, setFreshBoardStatus] =
+    useState<FreshBoardStatus>("idle");
+  const generationRef = useRef<AbortController | null>(null);
+  const seenBoardIdsRef = useRef(new Set(boards.map(({ id }) => id)));
+
+  useEffect(() => {
+    return () => {
+      const generation = generationRef.current;
+      generationRef.current = null;
+      generation?.abort();
+    };
+  }, []);
+
+  const handleGenerateFreshBoard = useCallback(() => {
+    if (generationRef.current !== null) {
+      const generation = generationRef.current;
+      generationRef.current = null;
+      generation.abort();
+      setFreshBoardStatus("cancelled");
+      return;
+    }
+
+    const generation = new AbortController();
+    generationRef.current = generation;
+    setFreshBoardStatus("generating");
+
+    void Promise.resolve()
+      .then(() =>
+        freshBoardGenerator(dictionary, {
+          excludedBoardIds: [...seenBoardIdsRef.current],
+          signal: generation.signal,
+        }),
+      )
+      .then(
+        (board) => {
+          if (generationRef.current !== generation) return;
+          generationRef.current = null;
+          seenBoardIdsRef.current.add(board.id);
+          playBoard(board);
+          setFreshBoardStatus("success");
+        },
+        () => {
+          if (generationRef.current !== generation) return;
+          generationRef.current = null;
+          setFreshBoardStatus("error");
+        },
+      );
+  }, [dictionary, freshBoardGenerator, playBoard]);
+
+  const handlePlayAgain = useCallback(() => {
+    setFreshBoardStatus("idle");
+    playAgain();
+  }, [playAgain]);
+  const handlePlayNextBoard = useCallback(() => {
+    setFreshBoardStatus("idle");
+    playNextBoard();
+  }, [playNextBoard]);
+
   return (
-    <GameScreen fallbackBoard={boards[0]!} game={game} status={game.status} />
+    <GameScreen
+      fallbackBoard={boards[0]!}
+      freshBoardStatus={freshBoardStatus}
+      game={game}
+      onGenerateFreshBoard={handleGenerateFreshBoard}
+      onPlayAgain={handlePlayAgain}
+      onPlayNextBoard={handlePlayNextBoard}
+      status={game.status}
+    />
   );
 }
 
-export function App({ dictionaryLoader = loadDictionary, boards = BOARDS }: AppProps) {
+export function App({
+  dictionaryLoader = loadDictionary,
+  boards = BOARDS,
+  freshBoardGenerator = generateFreshBoard,
+}: AppProps) {
   const fallbackBoard = boards[0];
   if (!fallbackBoard) throw new RangeError("At least one board is required");
 
@@ -149,6 +251,7 @@ export function App({ dictionaryLoader = loadDictionary, boards = BOARDS }: AppP
         key={boardCollectionKey(boards)}
         boards={boards}
         dictionary={dictionaryState.dictionary}
+        freshBoardGenerator={freshBoardGenerator}
       />
     );
   }

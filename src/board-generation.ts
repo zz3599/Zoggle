@@ -1,9 +1,15 @@
+import {
+  assertGeneratorVersion,
+  BOARD_GENERATOR_VERSION,
+  createBoardId,
+} from "./board-id.ts";
 import { scoreWord } from "./rules.ts";
 import type { Coordinate, LetterGrid } from "./types.ts";
 
+export { BOARD_GENERATOR_VERSION, createBoardId } from "./board-id.ts";
+
 export const GENERATED_BOARD_SIZE = 6;
 export const LONG_WORD_MIN_LENGTH = 7;
-export const BOARD_GENERATOR_VERSION = "v1";
 
 /**
  * A 36-tile approximation of English letter frequency. Board search only
@@ -13,7 +19,6 @@ export const DEFAULT_LETTER_POOL = "AAABCDDEEEEFGHHIIILMNNOOOPRRSSTTTUWY";
 
 const LOWERCASE_WORD = /^[a-z]{3,}$/;
 const ASCII_LETTER = /^[A-Za-z]$/;
-const UPPERCASE_LETTER = /^[A-Z]$/;
 const UINT32_RANGE = 0x1_0000_0000;
 
 interface MutableTrieNode {
@@ -108,15 +113,22 @@ interface NormalizedBoard {
   readonly letters: readonly number[];
 }
 
-interface SolverResult {
-  readonly words: readonly TraceableWord[];
+interface SolverSummary {
+  readonly wordCount: number;
+  readonly potentialScore: number;
+  readonly longestWordLength: number;
+  readonly longWordCount: number;
   readonly cellCoverage: number;
   readonly threeLetterPaths: readonly DisjointPathCandidate[];
+  readonly longerWordPaths: readonly DisjointPathCandidate[];
+}
+
+interface SolverResult extends SolverSummary {
+  readonly words: readonly TraceableWord[];
 }
 
 interface DisjointPathCandidate {
   readonly word: string;
-  readonly path: readonly number[];
   readonly pathMask: bigint;
 }
 
@@ -319,21 +331,47 @@ function pathToCoordinates(
 function solveNormalizedBoard(
   board: NormalizedBoard,
   trie: WordTrie,
-): SolverResult {
+  collectWords: true,
+): SolverResult;
+function solveNormalizedBoard(
+  board: NormalizedBoard,
+  trie: WordTrie,
+  collectWords: false,
+): SolverSummary;
+function solveNormalizedBoard(
+  board: NormalizedBoard,
+  trie: WordTrie,
+  collectWords: boolean,
+): SolverResult | SolverSummary {
   const { nodes } = requireTrie(trie);
   const cellCount = board.letters.length;
 
   if (cellCount === 0 || trie.wordCount === 0) {
-    return { words: [], cellCoverage: 0, threeLetterPaths: [] };
+    const summary: SolverSummary = {
+      wordCount: 0,
+      potentialScore: 0,
+      longestWordLength: 0,
+      longWordCount: 0,
+      cellCoverage: 0,
+      threeLetterPaths: [],
+      longerWordPaths: [],
+    };
+    return collectWords ? { ...summary, words: [] } : summary;
   }
 
   const neighbors = createNeighborIndex(board.rowCount, board.columnCount);
   const visited = new Uint8Array(cellCount);
   const covered = new Uint8Array(cellCount);
   const path: number[] = [];
-  const foundWords = new Map<string, TraceableWord>();
+  const foundWords = new Set<string>();
+  const words: TraceableWord[] | null = collectWords ? [] : null;
   const threeLetterMasksByWord = new Map<string, Set<bigint>>();
   const threeLetterPaths: DisjointPathCandidate[] = [];
+  const longerWordPaths: DisjointPathCandidate[] = [];
+  let wordCount = 0;
+  let potentialScore = 0;
+  let longestWordLength = 0;
+  let longWordCount = 0;
 
   const visit = (cellIndex: number, nodeIndex: number): void => {
     visited[cellIndex] = 1;
@@ -356,11 +394,23 @@ function solveNormalizedBoard(
         const pathMask = pathToMask(path);
 
         if (!existingWord) {
-          foundWords.set(node.word, {
-            word: node.word,
-            path: pathToCoordinates(path, board.columnCount),
-            pathMask,
-          });
+          foundWords.add(node.word);
+          wordCount += 1;
+          potentialScore += scoreWord(node.word);
+          longestWordLength = Math.max(longestWordLength, node.word.length);
+          if (node.word.length >= LONG_WORD_MIN_LENGTH) longWordCount += 1;
+
+          if (node.word.length > 3) {
+            longerWordPaths.push({ word: node.word, pathMask });
+          }
+
+          if (words !== null) {
+            words.push({
+              word: node.word,
+              path: pathToCoordinates(path, board.columnCount),
+              pathMask,
+            });
+          }
         }
 
         if (recordsThreeLetterPath) {
@@ -373,7 +423,6 @@ function solveNormalizedBoard(
             masks.add(pathMask);
             threeLetterPaths.push({
               word: node.word,
-              path: [...path],
               pathMask,
             });
           }
@@ -415,15 +464,24 @@ function solveNormalizedBoard(
     }
   }
 
-  const words = [...foundWords.values()].sort((first, second) =>
-    compareStrings(first.word, second.word),
-  );
   let cellCoverage = 0;
   for (const isCovered of covered) {
     cellCoverage += isCovered;
   }
 
-  return { words, cellCoverage, threeLetterPaths };
+  const summary: SolverSummary = {
+    wordCount,
+    potentialScore,
+    longestWordLength,
+    longWordCount,
+    cellCoverage,
+    threeLetterPaths,
+    longerWordPaths,
+  };
+  if (words === null) return summary;
+
+  words.sort((first, second) => compareStrings(first.word, second.word));
+  return { ...summary, words };
 }
 
 /** Find every unique dictionary word traceable on a rectangular board. */
@@ -431,10 +489,45 @@ export function solveBoard(
   board: BoardInput,
   trie: WordTrie,
 ): readonly TraceableWord[] {
-  return solveNormalizedBoard(normalizeBoard(board), trie).words;
+  return solveNormalizedBoard(normalizeBoard(board), trie, true).words;
 }
 
-function countGreedyDisjointWords(result: SolverResult): number {
+function addMaskCellFrequencies(
+  pathMask: bigint,
+  frequencies: Map<number, number>,
+): void {
+  let remaining = pathMask;
+  let cellIndex = 0;
+
+  while (remaining !== 0n) {
+    if ((remaining & 1n) !== 0n) {
+      frequencies.set(cellIndex, (frequencies.get(cellIndex) ?? 0) + 1);
+    }
+    remaining >>= 1n;
+    cellIndex += 1;
+  }
+}
+
+function sumMaskCellFrequencies(
+  pathMask: bigint,
+  frequencies: ReadonlyMap<number, number>,
+): number {
+  let remaining = pathMask;
+  let cellIndex = 0;
+  let total = 0;
+
+  while (remaining !== 0n) {
+    if ((remaining & 1n) !== 0n) {
+      total += frequencies.get(cellIndex) ?? 0;
+    }
+    remaining >>= 1n;
+    cellIndex += 1;
+  }
+
+  return total;
+}
+
+function countGreedyDisjointWords(result: SolverSummary): number {
   let claimedCells = 0n;
   let count = 0;
   const claimedWords = new Set<string>();
@@ -454,12 +547,7 @@ function countGreedyDisjointWords(result: SolverResult): number {
         candidate.word,
         (wordFrequencies.get(candidate.word) ?? 0) + 1,
       );
-      for (const cellIndex of candidate.path) {
-        cellFrequencies.set(
-          cellIndex,
-          (cellFrequencies.get(cellIndex) ?? 0) + 1,
-        );
-      }
+      addMaskCellFrequencies(candidate.pathMask, cellFrequencies);
     }
 
     let selected: DisjointPathCandidate | undefined;
@@ -467,10 +555,10 @@ function countGreedyDisjointWords(result: SolverResult): number {
     let selectedWordFrequency = Number.POSITIVE_INFINITY;
 
     for (const candidate of viable) {
-      let cellFrequency = 0;
-      for (const cellIndex of candidate.path) {
-        cellFrequency += cellFrequencies.get(cellIndex) ?? 0;
-      }
+      const cellFrequency = sumMaskCellFrequencies(
+        candidate.pathMask,
+        cellFrequencies,
+      );
       const wordFrequency = wordFrequencies.get(candidate.word) ?? 0;
 
       if (
@@ -495,14 +583,12 @@ function countGreedyDisjointWords(result: SolverResult): number {
     count += 1;
   }
 
-  const longerCandidates = result.words
-    .filter((candidate) => candidate.word.length > 3)
-    .sort((first, second) => {
-      const lengthDifference = first.word.length - second.word.length;
-      return lengthDifference !== 0
-        ? lengthDifference
-        : compareStrings(first.word, second.word);
-    });
+  const longerCandidates = [...result.longerWordPaths].sort((first, second) => {
+    const lengthDifference = first.word.length - second.word.length;
+    return lengthDifference !== 0
+      ? lengthDifference
+      : compareStrings(first.word, second.word);
+  });
 
   for (const candidate of longerCandidates) {
     if ((candidate.pathMask & claimedCells) === 0n) {
@@ -514,24 +600,12 @@ function countGreedyDisjointWords(result: SolverResult): number {
   return count;
 }
 
-function metricsFromSolverResult(result: SolverResult): BoardMetrics {
-  let potentialScore = 0;
-  let longestWordLength = 0;
-  let longWordCount = 0;
-
-  for (const { word } of result.words) {
-    potentialScore += scoreWord(word);
-    longestWordLength = Math.max(longestWordLength, word.length);
-    if (word.length >= LONG_WORD_MIN_LENGTH) {
-      longWordCount += 1;
-    }
-  }
-
+function metricsFromSolverResult(result: SolverSummary): BoardMetrics {
   return {
-    wordCount: result.words.length,
-    potentialScore,
-    longestWordLength,
-    longWordCount,
+    wordCount: result.wordCount,
+    potentialScore: result.potentialScore,
+    longestWordLength: result.longestWordLength,
+    longWordCount: result.longWordCount,
     cellCoverage: result.cellCoverage,
     greedyDisjointWordCount: countGreedyDisjointWords(result),
   };
@@ -542,7 +616,7 @@ export function analyzeBoard(
   board: BoardInput,
   trie: WordTrie,
 ): BoardAnalysis {
-  const result = solveNormalizedBoard(normalizeBoard(board), trie);
+  const result = solveNormalizedBoard(normalizeBoard(board), trie, true);
   return {
     words: result.words,
     metrics: metricsFromSolverResult(result),
@@ -554,7 +628,9 @@ export function measureBoard(
   board: BoardInput,
   trie: WordTrie,
 ): BoardMetrics {
-  return analyzeBoard(board, trie).metrics;
+  return metricsFromSolverResult(
+    solveNormalizedBoard(normalizeBoard(board), trie, false),
+  );
 }
 
 function seedToUint32(seed: RandomSeed): number {
@@ -642,57 +718,6 @@ function rowsFromLetters(letters: readonly string[]): readonly string[] {
     rows.push(letters.slice(offset, offset + GENERATED_BOARD_SIZE).join(""));
   }
   return rows;
-}
-
-function validateGeneratedRows(rows: readonly string[]): void {
-  if (!Array.isArray(rows)) {
-    throw new TypeError("Generated board rows must be an array of strings.");
-  }
-
-  if (
-    rows.length !== GENERATED_BOARD_SIZE ||
-    rows.some(
-      (row) =>
-        typeof row !== "string" ||
-        row.length !== GENERATED_BOARD_SIZE ||
-        [...row].some((letter) => !UPPERCASE_LETTER.test(letter)),
-    )
-  ) {
-    throw new RangeError(
-      `Generated board rows must form a ${GENERATED_BOARD_SIZE}x${GENERATED_BOARD_SIZE} uppercase grid.`,
-    );
-  }
-}
-
-function hashContent(source: string): string {
-  let hash = 0xcbf29ce484222325n;
-  const prime = 0x100000001b3n;
-
-  for (let index = 0; index < source.length; index += 1) {
-    hash ^= BigInt(source.charCodeAt(index));
-    hash = BigInt.asUintN(64, hash * prime);
-  }
-
-  return hash.toString(16).padStart(16, "0");
-}
-
-function assertGeneratorVersion(generatorVersion: string): void {
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(generatorVersion)) {
-    throw new TypeError(
-      "A generator version must be a non-empty identifier containing letters, digits, dots, underscores, or hyphens.",
-    );
-  }
-}
-
-/** Derive an ID solely from the generator version and uppercase board content. */
-export function createBoardId(
-  rows: readonly string[],
-  generatorVersion = BOARD_GENERATOR_VERSION,
-): string {
-  validateGeneratedRows(rows);
-  assertGeneratorVersion(generatorVersion);
-
-  return `generated-${generatorVersion}-${hashContent(`${generatorVersion}:${rows.join("")}`)}`;
 }
 
 /** Compare metrics in the same lexicographic order used to retain the best board. */

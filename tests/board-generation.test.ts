@@ -110,6 +110,62 @@ test("analyzeBoard computes score, length, coverage, and disjoint-word metrics",
   assert.deepEqual(measureBoard(board, trie), analysis.metrics);
 });
 
+test("measureBoard matches full analysis across duplicate paths and compact masks", () => {
+  const fixtures = [
+    {
+      board: ["ABCA", "BCAB", "CABC"],
+      words: [
+        "abc",
+        "bca",
+        "cab",
+        "abca",
+        "bcab",
+        "cabc",
+        "abcabc",
+        "bcabca",
+        "cabcab",
+      ],
+      expected: {
+        wordCount: 9,
+        potentialScore: 15,
+        longestWordLength: 6,
+        longWordCount: 0,
+        cellCoverage: 12,
+        greedyDisjointWordCount: 3,
+      },
+    },
+    {
+      board: ["ABAB", "BABA", "ABAB"],
+      words: [
+        "aba",
+        "bab",
+        "abab",
+        "baba",
+        "ababa",
+        "babab",
+        "abababa",
+        "bababab",
+      ],
+      expected: {
+        wordCount: 8,
+        potentialScore: 16,
+        longestWordLength: 7,
+        longWordCount: 2,
+        cellCoverage: 12,
+        greedyDisjointWordCount: 2,
+      },
+    },
+  ] as const;
+
+  for (const fixture of fixtures) {
+    const trie = buildWordTrie(fixture.words);
+    const analysis = analyzeBoard(fixture.board, trie);
+
+    assert.deepEqual(analysis.metrics, fixture.expected);
+    assert.deepEqual(measureBoard(fixture.board, trie), analysis.metrics);
+  }
+});
+
 test("generateBoard is seed-deterministic and preserves 6x6 board invariants", () => {
   const trie = buildWordTrie([
     "ace",
@@ -155,6 +211,7 @@ test("generateBoard is seed-deterministic and preserves 6x6 board invariants", (
     first.id,
     createBoardId(first.rows, options.generatorVersion),
   );
+  assert.deepEqual(first.metrics, analyzeBoard(first.rows, trie).metrics);
 });
 
 test("createBoardId is stable and content-addressed", () => {

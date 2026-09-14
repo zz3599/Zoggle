@@ -19,6 +19,7 @@ export interface StatusMessage {
 
 interface GameSession {
   readonly game: GameState;
+  readonly board: BoardDefinition;
   readonly boardIndex: number;
   readonly feedbackKey: number;
   readonly feedbackWord: string;
@@ -41,6 +42,7 @@ export interface GameController {
   readonly onPathChange: (path: readonly Coordinate[]) => void;
   readonly onSubmit: (path: readonly Coordinate[]) => void;
   readonly playAgain: () => void;
+  readonly playBoard: (board: BoardDefinition) => void;
   readonly playNextBoard: () => void;
 }
 
@@ -135,6 +137,7 @@ export function useGame(
     const snapshot = pageHasFocus() ? game.getSnapshot() : game.pause();
     return {
       game,
+      board,
       boardIndex: 0,
       feedbackKey: 0,
       feedbackWord: "",
@@ -267,7 +270,7 @@ export function useGame(
     const boardIndex = advanceBoard
       ? (current.boardIndex + 1) % boards.length
       : current.boardIndex;
-    const board = boardAt(boards, boardIndex);
+    const board = advanceBoard ? boardAt(boards, boardIndex) : current.board;
     let snapshot = current.game.resetRound({
       boardId: board.id,
       durationMs: ROUND_SECONDS * 1000,
@@ -276,6 +279,7 @@ export function useGame(
 
     commitSession({
       ...current,
+      board,
       boardIndex,
       feedbackKey: current.feedbackKey + 1,
       feedbackWord: "",
@@ -286,7 +290,7 @@ export function useGame(
     });
   }, [boards, commitSession]);
 
-  const board = boardAt(boards, session.boardIndex);
+  const board = session.board;
   const pathWord = useMemo(() => {
     if (path.length === 0) return "";
     try {
@@ -315,7 +319,7 @@ export function useGame(
 
   const onSubmit = useCallback((submittedPath: readonly Coordinate[]) => {
     const current = sessionRef.current;
-    const currentBoard = boardAt(boards, current.boardIndex);
+    const currentBoard = current.board;
     let word: string;
     try {
       word = wordFromPath(currentBoard.letters, submittedPath);
@@ -339,9 +343,29 @@ export function useGame(
         ? roundCompleteStatus(result.state.score)
         : submissionMessage(result),
     });
-  }, [boards, commitSession]);
+  }, [commitSession]);
 
   const playAgain = useCallback(() => resetRound(false), [resetRound]);
+  const playBoard = useCallback((board: BoardDefinition) => {
+    const current = sessionRef.current;
+    setPath([]);
+    let snapshot = current.game.resetRound({
+      boardId: board.id,
+      durationMs: ROUND_SECONDS * 1000,
+    });
+    if (!pageHasFocus()) snapshot = current.game.pause();
+
+    commitSession({
+      ...current,
+      board,
+      feedbackKey: current.feedbackKey + 1,
+      feedbackWord: "",
+      paused: current.game.isPaused(),
+      snapshot,
+      roundKey: current.roundKey + 1,
+      status: READY_STATUS,
+    });
+  }, [commitSession]);
   const playNextBoard = useCallback(() => resetRound(true), [resetRound]);
   const isSelectionEnabled = useCallback(() => {
     const current = sessionRef.current;
@@ -364,6 +388,7 @@ export function useGame(
     onPathChange,
     onSubmit,
     playAgain,
+    playBoard,
     playNextBoard,
   };
 }
