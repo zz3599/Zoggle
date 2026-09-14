@@ -83,31 +83,56 @@ function boardHeader(): HTMLElement {
   return header;
 }
 
+function mockCellCenter(cell: HTMLElement): {
+  readonly clientX: number;
+  readonly clientY: number;
+} {
+  const row = Number(cell.dataset.row);
+  const col = Number(cell.dataset.col);
+  const size = 10;
+  const stride = 20;
+  const left = col * stride;
+  const top = row * stride;
+
+  vi.spyOn(cell, "getBoundingClientRect").mockReturnValue({
+    left,
+    top,
+    right: left + size,
+    bottom: top + size,
+  } as DOMRect);
+
+  return {
+    clientX: left + size / 2,
+    clientY: top + size / 2,
+  };
+}
+
 function traceCells(...cells: HTMLElement[]): void {
   const first = cells[0];
   if (!first) throw new Error("At least one cell is required");
 
+  const firstCenter = mockCellCenter(first);
   fireEvent.pointerDown(first, {
     button: 0,
     pointerId: 7,
-    clientX: 5,
-    clientY: 5,
+    ...firstCenter,
   });
 
-  for (const [index, cell] of cells.slice(1).entries()) {
+  for (const cell of cells.slice(1)) {
+    const center = mockCellCenter(cell);
     setElementAtPoint(cell);
     fireEvent.pointerMove(document, {
       pointerId: 7,
-      clientX: 25 + index * 20,
-      clientY: 5,
+      ...center,
     });
   }
 
-  setElementAtPoint(cells.at(-1) ?? null);
+  const last = cells.at(-1) ?? first;
+  const lastCenter = mockCellCenter(last);
+  setElementAtPoint(last);
   fireEvent.pointerUp(document, {
     pointerId: 7,
-    clientX: 25 + cells.length * 20,
-    clientY: 5,
+    ...lastCenter,
   });
 }
 
@@ -210,7 +235,11 @@ describe("App", () => {
       name: "C, row 1, column 1",
     });
 
-    fireEvent.pointerDown(first, { button: 0, pointerId: 11 });
+    fireEvent.pointerDown(first, {
+      button: 0,
+      pointerId: 11,
+      ...mockCellCenter(first),
+    });
 
     expect(
       within(header).getByText("C", { selector: "#current-word" }),
@@ -346,7 +375,11 @@ describe("App", () => {
       within(header).getByText("+1 point", { selector: "#status" }),
     ).toBeInTheDocument();
 
-    fireEvent.pointerDown(cells[6]!, { button: 0, pointerId: 11 });
+    fireEvent.pointerDown(cells[6]!, {
+      button: 0,
+      pointerId: 11,
+      ...mockCellCenter(cells[6]!),
+    });
 
     expect(
       within(header).getByText("D", { selector: "#current-word" }),

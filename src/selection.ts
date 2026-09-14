@@ -2,6 +2,7 @@ import { areAdjacent } from "./rules";
 import type { Coordinate } from "./types";
 
 const CELL_SELECTOR = "[data-row][data-col]";
+const CELL_HITBOX_SCALE = 0.8;
 
 function isCoordinate(value: unknown): value is Coordinate {
   const candidate = value as Partial<Coordinate> | null;
@@ -61,23 +62,19 @@ interface ClosestTarget {
   closest?(selector: string): Element | null;
 }
 
-interface CellGeometry {
-  readonly coordinate: Coordinate;
-  readonly rect: Pick<DOMRect, "left" | "top" | "right" | "bottom">;
-}
-
-type SnapAxis = "horizontal" | "vertical";
-
-function cellFromTarget(
+function cellElementFromTarget(
   boardElement: HTMLElement,
   target: EventTarget | null | undefined,
-): Coordinate | null {
+): HTMLElement | null {
   const cell = (target as ClosestTarget | null)?.closest?.(CELL_SELECTOR);
   if (!cell || !boardElement.contains(cell)) {
     return null;
   }
 
-  const element = cell as HTMLElement;
+  return cell as HTMLElement;
+}
+
+function coordinateFromCell(element: HTMLElement): Coordinate | null {
   const coordinate = {
     row: Number(element.dataset.row),
     col: Number(element.dataset.col),
@@ -86,135 +83,48 @@ function cellFromTarget(
   return isCoordinate(coordinate) ? coordinate : null;
 }
 
-function distanceSquaredFromRect(
-  x: number,
-  y: number,
-  rect: CellGeometry["rect"],
-): number {
-  const horizontalDistance = Math.max(rect.left - x, 0, x - rect.right);
-  const verticalDistance = Math.max(rect.top - y, 0, y - rect.bottom);
-  return horizontalDistance ** 2 + verticalDistance ** 2;
-}
-
 /**
- * Return the cardinal snap lane containing a point relative to the current
- * tile. Corner gaps are in neither lane, so diagonal moves require an exact
- * tile hit.
+ * Return the tile whose centered 80%-size hit box contains the point.
+ *
+ * The inset around each hit box prevents a diagonal trace near a tile corner
+ * from accidentally selecting one of the horizontal or vertical neighbors.
  */
-function snapAxisFromPoint(
-  cells: readonly CellGeometry[],
-  current: Coordinate | undefined,
-  x: number,
-  y: number,
-): SnapAxis | null {
-  if (!isCoordinate(current)) {
-    return null;
-  }
-
-  let boardLeft = Infinity;
-  let boardTop = Infinity;
-  let boardRight = -Infinity;
-  let boardBottom = -Infinity;
-  let rowTop = Infinity;
-  let rowBottom = -Infinity;
-  let columnLeft = Infinity;
-  let columnRight = -Infinity;
-
-  for (const { coordinate, rect } of cells) {
-    boardLeft = Math.min(boardLeft, rect.left);
-    boardTop = Math.min(boardTop, rect.top);
-    boardRight = Math.max(boardRight, rect.right);
-    boardBottom = Math.max(boardBottom, rect.bottom);
-
-    if (coordinate.row === current.row) {
-      rowTop = Math.min(rowTop, rect.top);
-      rowBottom = Math.max(rowBottom, rect.bottom);
-    }
-    if (coordinate.col === current.col) {
-      columnLeft = Math.min(columnLeft, rect.left);
-      columnRight = Math.max(columnRight, rect.right);
-    }
-  }
-
-  const projectedX = Math.min(Math.max(x, boardLeft), boardRight);
-  const projectedY = Math.min(Math.max(y, boardTop), boardBottom);
-  const inHorizontalLane = projectedY >= rowTop && projectedY <= rowBottom;
-  const inVerticalLane =
-    projectedX >= columnLeft && projectedX <= columnRight;
-
-  if (inHorizontalLane === inVerticalLane) {
-    return null;
-  }
-
-  return inHorizontalLane ? "horizontal" : "vertical";
-}
-
-function closestCellFromPoint(
-  boardElement: HTMLElement,
-  x: number,
-  y: number,
-  current: Coordinate | undefined,
-): Coordinate | null {
-  if (!Number.isFinite(x) || !Number.isFinite(y) || !isCoordinate(current)) {
-    return null;
-  }
-
-  const cells: CellGeometry[] = [];
-  for (const cell of boardElement.querySelectorAll<HTMLElement>(CELL_SELECTOR)) {
-    const coordinate = cellFromTarget(boardElement, cell);
-    const rect = cell.getBoundingClientRect?.();
-    if (
-      !coordinate ||
-      !Number.isFinite(rect?.left) ||
-      !Number.isFinite(rect?.top) ||
-      !Number.isFinite(rect?.right) ||
-      !Number.isFinite(rect?.bottom) ||
-      rect.right <= rect.left ||
-      rect.bottom <= rect.top
-    ) {
-      continue;
-    }
-    cells.push({ coordinate, rect });
-  }
-
-  const snapAxis = snapAxisFromPoint(cells, current, x, y);
-  if (snapAxis === null) {
-    return null;
-  }
-
-  let closestCoordinate = null;
-  let closestDistance = Infinity;
-
-  for (const { coordinate, rect } of cells) {
-    if (
-      (snapAxis === "horizontal"
-        ? coordinate.row !== current.row
-        : coordinate.col !== current.col)
-    ) {
-      continue;
-    }
-
-    const distance = distanceSquaredFromRect(x, y, rect);
-    if (Number.isFinite(distance) && distance < closestDistance) {
-      closestCoordinate = coordinate;
-      closestDistance = distance;
-    }
-  }
-
-  return closestCoordinate;
-}
-
 function cellFromPoint(
   boardElement: HTMLElement,
   target: EventTarget | null | undefined,
   x: number,
   y: number,
-  current: Coordinate | undefined,
 ): Coordinate | null {
-  return (
-    cellFromTarget(boardElement, target) ??
-    closestCellFromPoint(boardElement, x, y, current)
-  );
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+
+  const cell = cellElementFromTarget(boardElement, target);
+  const coordinate = cell === null ? null : coordinateFromCell(cell);
+  const rect = cell?.getBoundingClientRect?.();
+  if (
+    coordinate === null ||
+    rect === undefined ||
+    !Number.isFinite(rect.left) ||
+    !Number.isFinite(rect.top) ||
+    !Number.isFinite(rect.right) ||
+    !Number.isFinite(rect.bottom) ||
+    rect.right <= rect.left ||
+    rect.bottom <= rect.top
+  ) {
+    return null;
+  }
+
+  const horizontalInset =
+    ((rect.right - rect.left) * (1 - CELL_HITBOX_SCALE)) / 2;
+  const verticalInset =
+    ((rect.bottom - rect.top) * (1 - CELL_HITBOX_SCALE)) / 2;
+  return x >= rect.left + horizontalInset &&
+    x <= rect.right - horizontalInset &&
+    y >= rect.top + verticalInset &&
+    y <= rect.bottom - verticalInset
+    ? coordinate
+    : null;
 }
 
 function defaultEnabled(): boolean {
@@ -284,7 +194,12 @@ export class SelectionController {
       return;
     }
 
-    const coordinate = cellFromTarget(this.boardElement, event.target);
+    const coordinate = cellFromPoint(
+      this.boardElement,
+      event.target,
+      event.clientX,
+      event.clientY,
+    );
     if (!coordinate || !this.isCellAvailable(coordinate)) {
       return;
     }
@@ -313,7 +228,6 @@ export class SelectionController {
       target,
       event.clientX,
       event.clientY,
-      this.path.at(-1),
     );
     if (!coordinate || !this.isCellAvailable(coordinate)) {
       return;
@@ -340,7 +254,6 @@ export class SelectionController {
       target,
       event.clientX,
       event.clientY,
-      this.path.at(-1),
     );
     const releasedOnUnavailableCell =
       releaseCoordinate !== null && !this.isCellAvailable(releaseCoordinate);

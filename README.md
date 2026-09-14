@@ -20,8 +20,8 @@ React 19, TypeScript, and Vite.
       6. 9+ letters: 20 points
 
    6. Letters are selected by holding a mouse button or finger, tracing a path,
-      and releasing. Horizontal and vertical gaps use nearest-tile snapping;
-      diagonal paths require an exact tile hit to avoid selecting a side tile.
+      and releasing. A tile is added only while the pointer is inside its
+      centered hit box, which spans 80% of the tile's width and height.
    7. Score updated after each valid word selected.
 3. The user can play the current board again at any time. At timer expiration,
    they can also start a new board.

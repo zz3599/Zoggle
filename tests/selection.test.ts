@@ -95,11 +95,24 @@ function pointerEvent(overrides: Partial<PointerEvent> = {}): PointerEvent {
   return {
     button: 0,
     pointerId: 7,
-    clientX: 10,
-    clientY: 10,
+    clientX: 5,
+    clientY: 5,
     preventDefault() {},
     ...overrides,
   } as PointerEvent;
+}
+
+function pointerEventAt(
+  target: HTMLElement,
+  overrides: Partial<PointerEvent> = {},
+): PointerEvent {
+  const rect = target.getBoundingClientRect();
+  return pointerEvent({
+    target,
+    clientX: (rect.left + rect.right) / 2,
+    clientY: (rect.top + rect.bottom) / 2,
+    ...overrides,
+  });
 }
 
 test("extendPath starts a new path without retaining the candidate object", () => {
@@ -176,10 +189,10 @@ test("SelectionController submits a path built across pointer events", () => {
   const first = harness.cell(0, 0);
   const second = harness.cell(0, 1);
 
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.controller.handlePointerDown(pointerEventAt(first));
   harness.setTargetAtPoint(second);
-  harness.controller.handlePointerMove(pointerEvent());
-  harness.controller.handlePointerUp(pointerEvent());
+  harness.controller.handlePointerMove(pointerEventAt(second));
+  harness.controller.handlePointerUp(pointerEventAt(second));
 
   assert.deepEqual(harness.submissions, [[
     { row: 0, col: 0 },
@@ -195,12 +208,12 @@ test("SelectionController keeps SENT selected when crossing back over E", () => 
   const n = harness.cell(3, 5);
   const t = harness.cell(4, 4);
 
-  harness.controller.handlePointerDown(pointerEvent({ target: s }));
+  harness.controller.handlePointerDown(pointerEventAt(s));
   for (const cell of [e, n, e, t]) {
     harness.setTargetAtPoint(cell);
-    harness.controller.handlePointerMove(pointerEvent());
+    harness.controller.handlePointerMove(pointerEventAt(cell));
   }
-  harness.controller.handlePointerUp(pointerEvent({ target: t }));
+  harness.controller.handlePointerUp(pointerEventAt(t));
 
   assert.deepEqual(harness.submissions, [[
     { row: 3, col: 3 },
@@ -210,7 +223,53 @@ test("SelectionController keeps SENT selected when crossing back over E", () => 
   ]]);
 });
 
-test("SelectionController rounds a pointer in a board gap to the closest cell", () => {
+test("SelectionController starts only inside a tile's centered 80% hit box", () => {
+  const acceptedPoints: ReadonlyArray<readonly [number, number]> = [
+    [30, 35],
+    [110, 75],
+    [70, 55],
+  ];
+  const rejectedPoints: ReadonlyArray<readonly [number, number]> = [
+    [29.9, 55],
+    [110.1, 55],
+    [70, 34.9],
+    [70, 75.1],
+  ];
+
+  for (const [clientX, clientY] of acceptedPoints) {
+    const harness = createControllerHarness();
+    const cell = harness.cell(0, 0, {
+      left: 20,
+      top: 30,
+      right: 120,
+      bottom: 80,
+    });
+
+    harness.controller.handlePointerDown(
+      pointerEvent({ target: cell, clientX, clientY }),
+    );
+
+    assert.deepEqual(harness.controller.path, [{ row: 0, col: 0 }]);
+  }
+
+  for (const [clientX, clientY] of rejectedPoints) {
+    const harness = createControllerHarness();
+    const cell = harness.cell(0, 0, {
+      left: 20,
+      top: 30,
+      right: 120,
+      bottom: 80,
+    });
+
+    harness.controller.handlePointerDown(
+      pointerEvent({ target: cell, clientX, clientY }),
+    );
+
+    assert.deepEqual(harness.controller.path, []);
+  }
+});
+
+test("SelectionController extends only inside a tile's centered 80% hit box", () => {
   const harness = createControllerHarness();
   const first = harness.cell(0, 0, {
     left: 0,
@@ -218,34 +277,65 @@ test("SelectionController rounds a pointer in a board gap to the closest cell", 
     right: 100,
     bottom: 100,
   });
-  harness.cell(0, 1, {
+  const second = harness.cell(0, 1, {
     left: 110,
     top: 0,
     right: 210,
     bottom: 100,
   });
 
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
-  harness.setTargetAtPoint(harness.boardElement);
+  harness.controller.handlePointerDown(pointerEventAt(first));
+  harness.setTargetAtPoint(second);
+  for (const [clientX, clientY] of [
+    [119.9, 50],
+    [200.1, 50],
+    [160, 9.9],
+    [160, 90.1],
+  ]) {
+    harness.controller.handlePointerMove(pointerEvent({ clientX, clientY }));
+  }
+  assert.deepEqual(harness.controller.path, [{ row: 0, col: 0 }]);
+
   harness.controller.handlePointerMove(
-    pointerEvent({ clientX: 108, clientY: 95 }),
+    pointerEvent({ clientX: 120, clientY: 10 }),
   );
   assert.deepEqual(harness.controller.path, [
     { row: 0, col: 0 },
     { row: 0, col: 1 },
   ]);
-
-  harness.controller.handlePointerUp(
-    pointerEvent({ clientX: 108, clientY: 95 }),
-  );
-
-  assert.deepEqual(harness.submissions, [[
-    { row: 0, col: 0 },
-    { row: 0, col: 1 },
-  ]]);
 });
 
-test("SelectionController rounds a pointer in a vertical board gap", () => {
+test("SelectionController does not round a point in a gap or outside the board", () => {
+  for (const [target, clientX, clientY] of [
+    ["board", 105, 50],
+    ["outside", 160, -1],
+  ] as const) {
+    const harness = createControllerHarness();
+    const first = harness.cell(0, 0, {
+      left: 0,
+      top: 0,
+      right: 100,
+      bottom: 100,
+    });
+    harness.cell(0, 1, {
+      left: 110,
+      top: 0,
+      right: 210,
+      bottom: 100,
+    });
+
+    harness.controller.handlePointerDown(pointerEventAt(first));
+    harness.setTargetAtPoint(
+      target === "board" ? harness.boardElement : {},
+    );
+    harness.controller.handlePointerMove(pointerEvent({ clientX, clientY }));
+    harness.controller.handlePointerUp(pointerEvent({ clientX, clientY }));
+
+    assert.deepEqual(harness.submissions, [[{ row: 0, col: 0 }]]);
+  }
+});
+
+test("SelectionController ignores side-tile edges during a diagonal trace", () => {
   const harness = createControllerHarness();
   const first = harness.cell(0, 0, {
     left: 0,
@@ -253,130 +343,42 @@ test("SelectionController rounds a pointer in a vertical board gap", () => {
     right: 100,
     bottom: 100,
   });
-  harness.cell(1, 0, {
+  const right = harness.cell(0, 1, {
+    left: 110,
+    top: 0,
+    right: 210,
+    bottom: 100,
+  });
+  const down = harness.cell(1, 0, {
     left: 0,
     top: 110,
     right: 100,
     bottom: 210,
   });
+  const diagonal = harness.cell(1, 1, {
+    left: 110,
+    top: 110,
+    right: 210,
+    bottom: 210,
+  });
 
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
-  harness.setTargetAtPoint(harness.boardElement);
+  harness.controller.handlePointerDown(pointerEventAt(first));
+  harness.setTargetAtPoint(right);
   harness.controller.handlePointerMove(
-    pointerEvent({ clientX: 95, clientY: 108 }),
+    pointerEvent({ clientX: 115, clientY: 95 }),
   );
-
-  assert.deepEqual(harness.controller.path, [
-    { row: 0, col: 0 },
-    { row: 1, col: 0 },
-  ]);
-});
-
-test("SelectionController rounds a pointer just outside the board", () => {
-  const cases: ReadonlyArray<readonly [number, number, number, number]> = [
-    [0, 1, 25, -2],
-    [1, 0, -2, 25],
-  ];
-
-  for (const [row, col, clientX, clientY] of cases) {
-    const harness = createControllerHarness();
-    const first = harness.cell(0, 0);
-    harness.cell(row, col);
-
-    harness.controller.handlePointerDown(pointerEvent({ target: first }));
-    harness.setTargetAtPoint({});
-    harness.controller.handlePointerMove(pointerEvent({ clientX, clientY }));
-    assert.deepEqual(harness.controller.path, [
-      { row: 0, col: 0 },
-      { row, col },
-    ]);
-
-    harness.controller.handlePointerUp(pointerEvent({ clientX, clientY }));
-
-    assert.deepEqual(harness.submissions, [[
-      { row: 0, col: 0 },
-      { row, col },
-    ]]);
-  }
-});
-
-test("SelectionController rounds the final pointer position on release", () => {
-  const harness = createControllerHarness();
-  const first = harness.cell(0, 0);
-  harness.cell(0, 1);
-
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
-  harness.setTargetAtPoint(harness.boardElement);
-  harness.controller.handlePointerUp(
-    pointerEvent({ clientX: 18, clientY: 5 }),
+  harness.setTargetAtPoint(down);
+  harness.controller.handlePointerMove(
+    pointerEvent({ clientX: 95, clientY: 115 }),
   );
+  assert.deepEqual(harness.controller.path, [{ row: 0, col: 0 }]);
 
-  assert.deepEqual(harness.submissions, [[
-    { row: 0, col: 0 },
-    { row: 0, col: 1 },
-  ]]);
-});
-
-test("SelectionController requires an exact tile hit for diagonal tracing", () => {
-  for (const [clientX, clientY] of [
-    [16, 14],
-    [14, 16],
-    [21, 14],
-    [14, 21],
-    [18, 18],
-  ]) {
-    const harness = createControllerHarness();
-    const first = harness.cell(0, 0);
-    harness.cell(0, 1);
-    harness.cell(1, 0);
-    const diagonal = harness.cell(1, 1);
-
-    harness.controller.handlePointerDown(pointerEvent({ target: first }));
-    harness.setTargetAtPoint(harness.boardElement);
-    harness.controller.handlePointerMove(pointerEvent({ clientX, clientY }));
-
-    assert.deepEqual(harness.controller.path, [{ row: 0, col: 0 }]);
-
-    harness.setTargetAtPoint(diagonal);
-    harness.controller.handlePointerMove(
-      pointerEvent({ clientX: 25, clientY: 25 }),
-    );
-    harness.controller.handlePointerUp(
-      pointerEvent({ clientX: 25, clientY: 25 }),
-    );
-
-    assert.deepEqual(harness.submissions, [[
-      { row: 0, col: 0 },
-      { row: 1, col: 1 },
-    ]]);
-  }
-});
-
-test("SelectionController does not round a diagonal release", () => {
-  const harness = createControllerHarness();
-  const first = harness.cell(0, 0);
-  harness.cell(0, 1);
-  harness.cell(1, 0);
-  harness.cell(1, 1);
-
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
-  harness.setTargetAtPoint(harness.boardElement);
-  harness.controller.handlePointerUp(
-    pointerEvent({ clientX: 16, clientY: 14 }),
-  );
-
-  assert.deepEqual(harness.submissions, [[{ row: 0, col: 0 }]]);
-});
-
-test("SelectionController accepts an exact diagonal tile on release", () => {
-  const harness = createControllerHarness();
-  const first = harness.cell(0, 0);
-  const diagonal = harness.cell(1, 1);
-
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
   harness.setTargetAtPoint(diagonal);
+  harness.controller.handlePointerMove(
+    pointerEvent({ clientX: 120, clientY: 120 }),
+  );
   harness.controller.handlePointerUp(
-    pointerEvent({ clientX: 25, clientY: 25 }),
+    pointerEvent({ clientX: 120, clientY: 120 }),
   );
 
   assert.deepEqual(harness.submissions, [[
@@ -385,28 +387,59 @@ test("SelectionController accepts an exact diagonal tile on release", () => {
   ]]);
 });
 
-test("SelectionController does not round past an unavailable closest cell", () => {
-  const harness = createControllerHarness({
-    isCellAvailable: ({ row, col }) => row !== 0 || col !== 1,
+test("SelectionController applies the 80% hit box to the final pointer position", () => {
+  for (const [clientX, expectedPath] of [
+    [119.9, [{ row: 0, col: 0 }]],
+    [120, [{ row: 0, col: 0 }, { row: 0, col: 1 }]],
+  ] as const) {
+    const harness = createControllerHarness();
+    const first = harness.cell(0, 0, {
+      left: 0,
+      top: 0,
+      right: 100,
+      bottom: 100,
+    });
+    const second = harness.cell(0, 1, {
+      left: 110,
+      top: 0,
+      right: 210,
+      bottom: 100,
+    });
+
+    harness.controller.handlePointerDown(pointerEventAt(first));
+    harness.setTargetAtPoint(second);
+    harness.controller.handlePointerUp(
+      pointerEvent({ clientX, clientY: 50 }),
+    );
+
+    assert.deepEqual(harness.submissions, [expectedPath]);
+  }
+});
+
+test("SelectionController rejects non-finite points and invalid tile bounds", () => {
+  const harness = createControllerHarness();
+  const zeroSized = harness.cell(0, 0, {
+    left: 5,
+    top: 5,
+    right: 5,
+    bottom: 5,
   });
-  const first = harness.cell(0, 0);
-  harness.cell(0, 1);
-  harness.cell(0, 2);
+  const valid = harness.cell(0, 1);
 
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
-  harness.setTargetAtPoint(harness.boardElement);
-  harness.controller.handlePointerMove(
-    pointerEvent({ clientX: 18, clientY: 5 }),
+  harness.controller.handlePointerDown(pointerEventAt(zeroSized));
+  assert.deepEqual(harness.controller.path, []);
+
+  harness.controller.handlePointerDown(
+    pointerEventAt(valid, { clientX: Number.NaN }),
   );
-
-  assert.deepEqual(harness.controller.path, [{ row: 0, col: 0 }]);
+  assert.deepEqual(harness.controller.path, []);
 });
 
 test("SelectionController cancels without submitting on Escape or lost capture", () => {
   const harness = createControllerHarness();
   const first = harness.cell(0, 0);
 
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.controller.handlePointerDown(pointerEventAt(first));
   harness.controller.handleKeyDown({
     key: "Escape",
     preventDefault() {},
@@ -414,7 +447,7 @@ test("SelectionController cancels without submitting on Escape or lost capture",
   assert.deepEqual(harness.submissions, []);
   assert.deepEqual(harness.pathChanges.at(-1), []);
 
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.controller.handlePointerDown(pointerEventAt(first));
   harness.controller.handleLostPointerCapture(pointerEvent());
   assert.deepEqual(harness.submissions, []);
   assert.deepEqual(harness.pathChanges.at(-1), []);
@@ -424,7 +457,7 @@ test("SelectionController destroys without notifying during cleanup", () => {
   const harness = createControllerHarness();
   const first = harness.cell(0, 0);
 
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.controller.handlePointerDown(pointerEventAt(first));
   const changeCount = harness.pathChanges.length;
   harness.controller.destroy();
 
@@ -436,7 +469,7 @@ test("SelectionController does not begin a path while disabled", () => {
   const harness = createControllerHarness({ enabled: false });
 
   harness.controller.handlePointerDown(
-    pointerEvent({ target: harness.cell(0, 0) }),
+    pointerEventAt(harness.cell(0, 0)),
   );
 
   assert.deepEqual(harness.pathChanges, []);
@@ -451,15 +484,15 @@ test("SelectionController does not start from or extend through unavailable cell
   const unavailable = harness.cell(0, 1);
   const next = harness.cell(1, 0);
 
-  harness.controller.handlePointerDown(pointerEvent({ target: unavailable }));
+  harness.controller.handlePointerDown(pointerEventAt(unavailable));
   assert.deepEqual(harness.pathChanges, []);
 
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
+  harness.controller.handlePointerDown(pointerEventAt(first));
   harness.setTargetAtPoint(unavailable);
-  harness.controller.handlePointerMove(pointerEvent());
+  harness.controller.handlePointerMove(pointerEventAt(unavailable));
   harness.setTargetAtPoint(next);
-  harness.controller.handlePointerMove(pointerEvent());
-  harness.controller.handlePointerUp(pointerEvent());
+  harness.controller.handlePointerMove(pointerEventAt(next));
+  harness.controller.handlePointerUp(pointerEventAt(next));
 
   assert.deepEqual(harness.submissions, [[
     { row: 0, col: 0 },
@@ -467,19 +500,17 @@ test("SelectionController does not start from or extend through unavailable cell
   ]]);
 });
 
-test("SelectionController does not submit near an unavailable cell", () => {
+test("SelectionController does not submit when released inside an unavailable cell", () => {
   const harness = createControllerHarness({
     isCellAvailable: ({ row, col }) => row !== 0 || col !== 1,
   });
 
   const first = harness.cell(0, 0);
-  harness.cell(0, 1);
+  const unavailable = harness.cell(0, 1);
 
-  harness.controller.handlePointerDown(pointerEvent({ target: first }));
-  harness.setTargetAtPoint(harness.boardElement);
-  harness.controller.handlePointerUp(
-    pointerEvent({ clientX: 18, clientY: 5 }),
-  );
+  harness.controller.handlePointerDown(pointerEventAt(first));
+  harness.setTargetAtPoint(unavailable);
+  harness.controller.handlePointerUp(pointerEventAt(unavailable));
 
   assert.deepEqual(harness.submissions, []);
   assert.deepEqual(harness.pathChanges.at(-1), []);
