@@ -190,6 +190,25 @@ test("rejects a new word that reuses a cell from an accepted word", () => {
   assert.deepEqual(scored, ["cater"], "reused cells reject before scoring");
 });
 
+test("can keep accepted cells available for replenishing game modes", () => {
+  const game = new GameState({
+    boardId: "endless:board-1",
+    consumeCells: false,
+    storage: null,
+    now: () => 10,
+    validateWord: () => true,
+  });
+
+  const first = game.submitWord({ word: "cat", cells: [[0, 0]] });
+  const second = game.submitWord({ word: "dog", cells: [[0, 0]] });
+
+  assert.equal(first.accepted, true);
+  assert.equal(second.accepted, true);
+  assert.deepEqual(second.state.foundWords, ["cat", "dog"]);
+  assert.deepEqual(second.state.usedCells, []);
+  assert.equal(game.isCellUsed([0, 0]), false);
+});
+
 test("canonicalizes string cell coordinates when checking for reuse", () => {
   const game = new GameState({ boardId: "board-1", storage: null, now: () => 0 });
 

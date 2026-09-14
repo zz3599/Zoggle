@@ -3,6 +3,8 @@ export interface Coordinate {
   readonly col: number;
 }
 
+export type GameMode = "classic" | "endless";
+
 export type LetterGrid = readonly (readonly string[])[];
 
 export interface BoardDefinition {

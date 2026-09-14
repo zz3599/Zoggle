@@ -42,6 +42,8 @@ export interface StorageAdapter {
 
 export interface GameStateOptions {
   readonly boardId: string;
+  /** Whether accepted paths stay unavailable for the rest of the round. */
+  readonly consumeCells?: boolean;
   readonly durationMs?: number;
   readonly storage?: StorageAdapter | null;
   readonly now?: () => number;
@@ -89,6 +91,7 @@ export class GameState {
   private readonly validateWord: ValidateWord | null;
   private readonly scoreWord: ScoreWord;
   private readonly storage: StorageAdapter | null;
+  private readonly consumeCells: boolean;
   private readonly knownHighScores = new Map<string, number>();
   private boardId = "";
   private durationMs = DEFAULT_ROUND_DURATION_MS;
@@ -103,6 +106,7 @@ export class GameState {
 
   constructor({
     boardId,
+    consumeCells = true,
     durationMs = DEFAULT_ROUND_DURATION_MS,
     storage = getDefaultStorage(),
     now = Date.now,
@@ -113,6 +117,7 @@ export class GameState {
     this.validateWord = optionalFunction(validateWord, "validateWord");
     this.scoreWord = requireFunction(scoreWord, "scoreWord");
     this.storage = storage;
+    this.consumeCells = consumeCells === true;
 
     this.resetRound({ boardId, durationMs });
   }
@@ -145,7 +150,8 @@ export class GameState {
    * Try to add a word to the current round.
    *
    * cells can contain "row,col" strings, [row, col] tuples, or
-   * { row, col } objects. Accepted cells are accumulated for board highlighting.
+   * { row, col } objects. When consumeCells is enabled, accepted cells are
+   * accumulated for board highlighting and cannot be submitted again.
    */
   submitWord({
     word,
@@ -173,7 +179,10 @@ export class GameState {
       return this.rejection("invalid-cells", normalizedWord, submittedAt);
     }
 
-    if (normalizedCells.some((cell) => this.usedCells.has(cell))) {
+    if (
+      this.consumeCells &&
+      normalizedCells.some((cell) => this.usedCells.has(cell))
+    ) {
       return this.rejection("used-cell", normalizedWord, submittedAt);
     }
 
@@ -205,7 +214,9 @@ export class GameState {
 
     this.foundWords.push(normalizedWord);
     this.foundWordSet.add(normalizedWord);
-    for (const cell of normalizedCells) this.usedCells.add(cell);
+    if (this.consumeCells) {
+      for (const cell of normalizedCells) this.usedCells.add(cell);
+    }
     this.score += awardedPoints;
 
     const latestHighScore = this.readHighScore(this.boardId);

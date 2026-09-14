@@ -3,19 +3,15 @@ import {
   BOARD_GENERATOR_VERSION,
   createBoardId,
 } from "./board-id.ts";
+import { DEFAULT_LETTER_POOL } from "./letter-pool.ts";
 import { scoreWord } from "./rules.ts";
 import type { Coordinate, LetterGrid } from "./types.ts";
 
 export { BOARD_GENERATOR_VERSION, createBoardId } from "./board-id.ts";
+export { DEFAULT_LETTER_POOL } from "./letter-pool.ts";
 
 export const GENERATED_BOARD_SIZE = 6;
 export const LONG_WORD_MIN_LENGTH = 7;
-
-/**
- * A 36-tile approximation of English letter frequency. Board search only
- * changes the positions of these letters, never the multiset itself.
- */
-export const DEFAULT_LETTER_POOL = "AAABCDDEEEEFGHHIIILMNNOOOPRRSSTTTUWY";
 
 const LOWERCASE_WORD = /^[a-z]{3,}$/;
 const ASCII_LETTER = /^[A-Za-z]$/;
