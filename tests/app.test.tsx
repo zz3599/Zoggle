@@ -171,9 +171,10 @@ describe("App", () => {
     await renderReady();
 
     const scoring = screen.getByRole("list", { name: "Scoring" });
-    expect(within(scoring).getAllByRole("listitem")).toHaveLength(6);
-    expect(within(scoring).getByText("3–4 letters")).toBeInTheDocument();
+    expect(within(scoring).getAllByRole("listitem")).toHaveLength(7);
+    expect(within(scoring).getByText("3 letters")).toBeInTheDocument();
     expect(within(scoring).getByText("9+ letters")).toBeInTheDocument();
+    expect(within(scoring).getByText("50 points")).toBeInTheDocument();
   });
 
   test("loads one dictionary in Strict Mode and enables the board", async () => {
@@ -316,7 +317,7 @@ describe("App", () => {
       screen.getByText("CATERS", { selector: "#current-word" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("+3 points", { selector: "#status" }),
+      screen.getByText("+4 points", { selector: "#status" }),
     ).toBeInTheDocument();
     expect(screen.getByText("caters", { selector: "li" })).toBeInTheDocument();
     for (const cell of cells) expect(cell).toBeDisabled();
@@ -510,6 +511,24 @@ describe("App", () => {
     expect(screen.getByText("cat", { selector: "li" })).toBeInTheDocument();
     expect(screen.getByText("dog", { selector: "li" })).toBeInTheDocument();
     expect(endlessTileRandom).toHaveBeenCalledTimes(6);
+  });
+
+  test("uses the same updated word-length scoring in Endless mode", async () => {
+    const user = userEvent.setup();
+    render(
+      <App
+        boards={TEST_BOARDS}
+        dictionaryLoader={() => Promise.resolve(new Set(["cate"]))}
+        endlessTileRandom={() => 0}
+      />,
+    );
+    expect(await screen.findByText(READY_MESSAGE)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Endless/ }));
+    traceCells(...boardCells().slice(0, 4));
+
+    expect(screen.getByText("+2 points · 4 tiles refilled")).toBeInTheDocument();
+    expect(screen.getByText("2", { selector: "#score-value" })).toBeInTheDocument();
   });
 
   test("does not replenish a rejected Endless path and replay restores its seed board", async () => {

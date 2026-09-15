@@ -130,13 +130,13 @@ test("scoreWord implements every scoring boundary exactly", () => {
     ["", 0],
     ["aa", 0],
     ["aaa", 1],
-    ["aaaa", 1],
-    ["aaaaa", 2],
-    ["aaaaaa", 3],
-    ["aaaaaaa", 4],
-    ["aaaaaaaa", 11],
-    ["aaaaaaaaa", 20],
-    ["aaaaaaaaaaaa", 20],
+    ["aaaa", 2],
+    ["aaaaa", 3],
+    ["aaaaaa", 4],
+    ["aaaaaaa", 11],
+    ["aaaaaaaa", 20],
+    ["aaaaaaaaa", 50],
+    ["aaaaaaaaaaaa", 50],
   ]);
 
   for (const [word, score] of expectations) {

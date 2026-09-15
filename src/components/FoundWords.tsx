@@ -20,28 +20,32 @@ export function FoundWords({ words }: FoundWordsProps) {
       </ol>
       <ul className="scoring-note" aria-label="Scoring">
         <li>
-          <span>3–4 letters</span>
+          <span>3 letters</span>
           <strong>1 point</strong>
         </li>
         <li>
-          <span>5 letters</span>
+          <span>4 letters</span>
           <strong>2 points</strong>
         </li>
         <li>
-          <span>6 letters</span>
+          <span>5 letters</span>
           <strong>3 points</strong>
         </li>
         <li>
-          <span>7 letters</span>
+          <span>6 letters</span>
           <strong>4 points</strong>
         </li>
         <li>
-          <span>8 letters</span>
+          <span>7 letters</span>
           <strong>11 points</strong>
         </li>
         <li>
-          <span>9+ letters</span>
+          <span>8 letters</span>
           <strong>20 points</strong>
+        </li>
+        <li>
+          <span>9+ letters</span>
+          <strong>50 points</strong>
         </li>
       </ul>
     </aside>

@@ -101,7 +101,7 @@ test("analyzeBoard computes score, length, coverage, and disjoint-word metrics",
   );
   assert.deepEqual(analysis.metrics, {
     wordCount: 3,
-    potentialScore: 13,
+    potentialScore: 22,
     longestWordLength: 8,
     longWordCount: 1,
     cellCoverage: 8,
@@ -127,7 +127,7 @@ test("measureBoard matches full analysis across duplicate paths and compact mask
       ],
       expected: {
         wordCount: 9,
-        potentialScore: 15,
+        potentialScore: 21,
         longestWordLength: 6,
         longWordCount: 0,
         cellCoverage: 12,
@@ -148,7 +148,7 @@ test("measureBoard matches full analysis across duplicate paths and compact mask
       ],
       expected: {
         wordCount: 8,
-        potentialScore: 16,
+        potentialScore: 34,
         longestWordLength: 7,
         longWordCount: 2,
         cellCoverage: 12,

@@ -24,12 +24,13 @@ Both modes share these rules:
    4. No individual tile may be used more than once within one word.
    5. Scoring:
 
-      1. 3-4 letters: 1 point
-      2. 5 letters: 2 points
-      3. 6 letters: 3 points
-      4. 7 letters: 4 points
-      5. 8 letters: 11 points
-      6. 9+ letters: 20 points
+      1. 3 letters: 1 point
+      2. 4 letters: 2 points
+      3. 5 letters: 3 points
+      4. 6 letters: 4 points
+      5. 7 letters: 11 points
+      6. 8 letters: 20 points
+      7. 9+ letters: 50 points
 
    6. Letters are selected by holding a mouse button or finger, tracing a path,
       and releasing. A tile is added only while the pointer is inside its

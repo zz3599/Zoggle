@@ -26,7 +26,7 @@
       ],
       "metrics": {
         "wordCount": 2252,
-        "potentialScore": 8247,
+        "potentialScore": 16641,
         "longestWordLength": 13,
         "longWordCount": 542,
         "cellCoverage": 36,
@@ -46,7 +46,7 @@
       ],
       "metrics": {
         "wordCount": 2522,
-        "potentialScore": 11399,
+        "potentialScore": 23722,
         "longestWordLength": 13,
         "longWordCount": 803,
         "cellCoverage": 36,
@@ -66,7 +66,7 @@
       ],
       "metrics": {
         "wordCount": 2401,
-        "potentialScore": 9165,
+        "potentialScore": 18400,
         "longestWordLength": 11,
         "longWordCount": 678,
         "cellCoverage": 36,
@@ -86,7 +86,7 @@
       ],
       "metrics": {
         "wordCount": 2215,
-        "potentialScore": 8636,
+        "potentialScore": 17262,
         "longestWordLength": 12,
         "longWordCount": 572,
         "cellCoverage": 36,
@@ -106,7 +106,7 @@
       ],
       "metrics": {
         "wordCount": 2327,
-        "potentialScore": 7834,
+        "potentialScore": 15416,
         "longestWordLength": 13,
         "longWordCount": 547,
         "cellCoverage": 36,
@@ -126,7 +126,7 @@
       ],
       "metrics": {
         "wordCount": 2371,
-        "potentialScore": 8313,
+        "potentialScore": 16208,
         "longestWordLength": 12,
         "longWordCount": 627,
         "cellCoverage": 36,
@@ -134,23 +134,23 @@
       }
     },
     {
-      "id": "generated-v1-410cc004bd471323",
+      "id": "generated-v1-149acae792299543",
       "label": "Generated board 7",
       "rows": [
-        "WPRNDE",
-        "YAIEHC",
-        "ELSTAB",
-        "ADERUM",
-        "INISOF",
-        "GOTHTO"
+        "WTNGRD",
+        "PAIEAE",
+        "BLSTNM",
+        "OIEROI",
+        "FDASUH",
+        "HYETCO"
       ],
       "metrics": {
-        "wordCount": 2155,
-        "potentialScore": 7066,
+        "wordCount": 2332,
+        "potentialScore": 17866,
         "longestWordLength": 11,
-        "longWordCount": 490,
+        "longWordCount": 650,
         "cellCoverage": 36,
-        "greedyDisjointWordCount": 12
+        "greedyDisjointWordCount": 11
       }
     },
     {
@@ -166,7 +166,7 @@
       ],
       "metrics": {
         "wordCount": 2397,
-        "potentialScore": 9187,
+        "potentialScore": 18405,
         "longestWordLength": 13,
         "longWordCount": 645,
         "cellCoverage": 36,

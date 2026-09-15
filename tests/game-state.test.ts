@@ -28,13 +28,13 @@ function memoryStorage(
 test("scores every documented word-length boundary", () => {
   assert.equal(scoreForWord("no"), 0);
   assert.equal(scoreForWord("cat"), 1);
-  assert.equal(scoreForWord("four"), 1);
-  assert.equal(scoreForWord("fives"), 2);
-  assert.equal(scoreForWord("sixes!"), 3);
-  assert.equal(scoreForWord("seventh"), 4);
-  assert.equal(scoreForWord("eight888"), 11);
-  assert.equal(scoreForWord("ninechars"), 20);
-  assert.equal(scoreForWord("any longer word"), 20);
+  assert.equal(scoreForWord("four"), 2);
+  assert.equal(scoreForWord("fives"), 3);
+  assert.equal(scoreForWord("sixes!"), 4);
+  assert.equal(scoreForWord("seventh"), 11);
+  assert.equal(scoreForWord("eight888"), 20);
+  assert.equal(scoreForWord("ninechars"), 50);
+  assert.equal(scoreForWord("any longer word"), 50);
 });
 
 test("starts a configurable round and expires exactly at its deadline", () => {
