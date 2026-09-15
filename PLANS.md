@@ -74,8 +74,10 @@ The current exact baselines are:
 
 - The main page can now generate fresh boards on demand. The bounded search runs
   in a Web Worker and retains the checked-in pool as an immediate fallback.
-- Endless mode replenishes accepted paths from the generator's weighted letter
-  pool without running an expensive board search during play.
+- Endless mode now removes accepted paths, compacts each column under gravity,
+  and spawns weighted letters at the top without running an expensive board
+  search during play. Newly formed words resolve in bounded longest-first
+  cascades with a seven-letter readability cap.
 
 ## Theme-based generated boards
 
@@ -191,8 +193,8 @@ dictionary definitions inside the annealing loop.
    attainable themed count and score, not only the number of independently
    traceable words, and retain coverage/path-diversity tie breakers so one
    heavily shared letter cluster does not dominate the result.
-5. Put Endless replenishment behind a `TileReplacementStrategy` interface. Give
-   a strategy the current board, replaced cells, theme profile/trie,
+5. Put Endless top-spawn selection behind a `TileSpawnStrategy` interface. Give
+   a strategy the current board, removed cells, theme profile/trie,
    already-found words, a seeded random source, and a strict work budget. Keep
    today's English-frequency sampler as the unthemed fallback, then benchmark:
 
@@ -202,7 +204,7 @@ dictionary definitions inside the annealing loop.
    - sampling a bounded set of fills and choosing the one that creates the most
      unseen themed words according to the small theme trie.
 
-   Refill must still change only submitted cells, prefer a different letter,
+   Gravity must still preserve survivor order, spawn only at the top,
    and complete within a small synchronous latency budget. If lookahead cannot
    meet that budget, precompute hints or move it to a worker rather than running
    full-board annealing during submission.
@@ -216,8 +218,8 @@ dictionary definitions inside the annealing loop.
    it, ambiguous inflections resolve consistently, anchors survive allocation,
    and the pool contains exactly 36 valid letters. Also test CLI validation,
    sparse themes, themed metrics, Classic disjoint packing, and every
-   refill-strategy contract. Re-solve checked-in themed artifacts, prove that
-   only submitted Endless cells change, exclude already-found words from refill
+   spawn-strategy contract. Re-solve checked-in themed artifacts, prove that
+   columns compact correctly, exclude already-found words from cascade
    scoring, and preserve every existing unthemed test. Document theme
    resolution, regeneration, metrics, and artifact provenance in the README.
 
@@ -230,8 +232,8 @@ dictionary definitions inside the annealing loop.
   and Classic tile-disjoint themed opportunities without violating general
   quality floors.
 - Seeded Endless rollouts report new unique themed words available after each
-  refill and beat the existing random replacement baseline over a fixed number
-  of turns. Record both yield and worst-case refill latency so quality does not
+  gravity cycle and beat the existing random-spawn baseline over a fixed number
+  of turns. Record both yield and worst-case spawn latency so quality does not
   come at the cost of responsive play.
 
 ## Possible follow-ups

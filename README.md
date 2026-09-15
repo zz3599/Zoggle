@@ -9,10 +9,12 @@ Zoggle has two modes, selected from the prominent control beside the title:
 
 - **Classic** locks every tile used in an accepted word for the rest of the
   round.
-- **Endless** immediately replaces the tiles in an accepted word and leaves
-  those positions available for another word. Replacement letters are chosen
-  from the same English-frequency pool used to seed generated boards, with a
-  different letter preferred at each position.
+- **Endless** removes every tile in an accepted word, drops the remaining tiles
+  down their columns, and spawns weighted random letters at the top. A word
+  created by each fall is scored and cleared automatically, producing visible
+  combo cascades. Cascades prefer the longest new word up to seven letters, use
+  stable quality tie-breakers, and stop after eight automatic clears so a
+  word-dense board always returns control to the player.
 
 Both modes share these rules:
 
@@ -80,11 +82,15 @@ all independently traceable words' values; in Classic, accepted words lock
 their tiles, so it is a comparison metric rather than an attainable round
 score.
 
-Endless refills deliberately do not run the full solver or annealing search in
-the gameplay path. They sample only the played positions from the same weighted
-letter pool, making the work proportional to word length and keeping each
-refill instant. High scores are stored locally per board and mode using stable
-IDs derived from the generator version and starting layout.
+Endless gravity samples only the new top tiles from the same weighted letter
+pool; it never runs the board generator or annealing search during play. After
+each fall, the exact trie solver compares the settled board with its previous
+layout and considers only genuinely new, not-yet-scored words that cross the
+fall frontier. It selects one deterministically by length, score, frontier
+coverage, future fall potential, and stable lexical/path tie-breakers, then
+repeats. The round clock pauses while gravity and cascades resolve. High scores
+are stored locally per board and mode using stable IDs derived from the
+generator version and starting layout.
 
 ## User interface
 1. Clear and uncluttered UI for the current timer, current score, all-time high score for this board, current board state (letters already part of words should be highlighted differently), already selected words.
@@ -122,8 +128,8 @@ Use `npm run preview` to serve the production build locally.
 - `src/App.tsx` composes the game interface from focused React components.
 - `src/board-generation.ts` contains the exact board solver, quality analysis,
   and deterministic search used by the offline generator.
-- `src/endless-board.ts` contains the bounded, immutable Endless tile-refill
-  logic.
+- `src/endless-board.ts` contains immutable column gravity and top-spawn logic.
+- `src/endless-cascade.ts` selects deterministic longest-word cascade paths.
 - `src/generate-board.worker.ts` runs opt-in fresh-board searches away from the
   browser's main thread.
 - `src/hooks/` owns dictionary loading, round timing, and pointer-controller
@@ -138,11 +144,12 @@ Hold the primary mouse button (or a finger on a touch screen), trace through
 neighboring tiles, and release to submit. On board 1 of the default generated
 pool, row 2 column 2 through row 2 column 3 and then row 3 column 2 spell `CAT`
 and provide a quick scoring check. In Classic, verify those tiles become
-unavailable. Switch to Endless, submit a word, and verify its positions animate
-in with new letters and remain available. Switching modes starts a clean round,
-and Play again restores the starting board. After time expires, verify that
-moving to a new board also starts a fresh round. Board-and-mode high scores are
-retained in browser storage.
+unavailable. Switch to Endless, submit a word, and verify surviving tiles fall
+smoothly while random letters enter from the top. Newly formed words should
+highlight, score, and clear automatically before input is restored. Switching
+modes starts a clean round, and Play again restores the starting board. After
+time expires, verify that moving to a new board also starts a fresh round.
+Board-and-mode high scores are retained in browser storage.
 
 Use **Generate fresh board** to search for a new layout that is not in the
 checked-in pool. The current board remains playable while the search runs, and
