@@ -9,6 +9,8 @@ import type { Coordinate } from "./types";
 
 /** Prevent a word-dense Endless board from cascading without yielding control. */
 export const MAX_CASCADE_DEPTH = 8;
+/** Keep automatic matches readable instead of surfacing dictionary curiosities. */
+export const MAX_CASCADE_WORD_LENGTH = 7;
 
 export interface CascadeCandidate extends TraceableWord {
   readonly score: number;
@@ -152,7 +154,11 @@ export function findBestCascadeCandidate({
 
   const candidates: CascadeCandidate[] = [];
   for (const trace of solveBoard(afterBoard, trie)) {
-    if (wordsBeforeGravity.has(trace.word) || excluded.has(trace.word)) {
+    if (
+      trace.word.length > MAX_CASCADE_WORD_LENGTH ||
+      wordsBeforeGravity.has(trace.word) ||
+      excluded.has(trace.word)
+    ) {
       continue;
     }
 

@@ -12,7 +12,7 @@ const MODE_OPTIONS = [
     value: "classic",
   },
   {
-    description: "Played tiles refill",
+    description: "Gravity and word cascades",
     label: "Endless",
     value: "endless",
   },

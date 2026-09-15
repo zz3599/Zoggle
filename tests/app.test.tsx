@@ -13,6 +13,11 @@ import { App } from "../src/App";
 import { createBoardId } from "../src/board-id";
 import { dictionaryFromArray } from "../src/dictionary";
 import type { FreshBoardGenerator } from "../src/fresh-board";
+import {
+  CASCADE_HIGHLIGHT_MS,
+  GRAVITY_ANIMATION_MS,
+} from "../src/hooks/use-game";
+import { DEFAULT_LETTER_POOL } from "../src/letter-pool";
 import type { BoardDefinition } from "../src/types";
 import { setElementAtPoint } from "./setup";
 
@@ -70,7 +75,7 @@ function deferred<T>(): Deferred<T> {
 }
 
 function boardCells(): HTMLElement[] {
-  const board = screen.getByRole("group", { name: /board, 6 by 6/ });
+  const board = screen.getByRole("group", { name: /board, \d+ by \d+/ });
   return within(board).getAllByRole("button");
 }
 
@@ -150,11 +155,22 @@ async function renderReady(dictionary = new Set(["cat"])) {
 
 async function renderReadyWithFakeTimers(
   dictionary = new Set(["cat"]),
+  {
+    boards = TEST_BOARDS,
+    endlessTileRandom,
+  }: {
+    readonly boards?: readonly BoardDefinition[];
+    readonly endlessTileRandom?: () => number;
+  } = {},
 ) {
   vi.useFakeTimers();
   const request = deferred<Set<string>>();
   const result = render(
-    <App boards={TEST_BOARDS} dictionaryLoader={() => request.promise} />,
+    <App
+      boards={boards}
+      dictionaryLoader={() => request.promise}
+      endlessTileRandom={endlessTileRandom}
+    />,
   );
 
   await act(async () => {
@@ -459,50 +475,47 @@ describe("App", () => {
     expect(screen.getByText("1", { selector: "#high-score-value" })).toBeInTheDocument();
   });
 
-  test("replenishes accepted Endless paths and lets their positions score again", async () => {
+  test("drops new Endless tiles and lets their positions score again", async () => {
     const randomValues = [
-      0.11714285714285713,
-      0.5787878787878789,
-      0.36666666666666664,
+      5.1 / 36,
+      22.1 / 36,
+      12.1 / 36,
       0,
       0,
       0,
     ];
     const endlessTileRandom = vi.fn(() => randomValues.shift() ?? 0);
-    const user = userEvent.setup();
-    render(
-      <App
-        boards={TEST_BOARDS}
-        dictionaryLoader={() => Promise.resolve(new Set(["cat", "dog"]))}
-        endlessTileRandom={endlessTileRandom}
-      />,
+    await renderReadyWithFakeTimers(
+      new Set(["cat", "dog"]),
+      { endlessTileRandom },
     );
-    expect(await screen.findByText(READY_MESSAGE)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /Endless/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Endless/ }));
     traceCells(...boardCells().slice(0, 3));
 
     expect(
       screen.getByText("CAT", { selector: "#current-word" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("+1 point · 3 tiles refilled")).toBeInTheDocument();
+    expect(screen.getByText("+1 point · Gravity!")).toBeInTheDocument();
     expect(endlessTileRandom).toHaveBeenCalledTimes(3);
     const dogCells = boardCells().slice(0, 3);
     expect(dogCells.map((cell) => cell.textContent)).toEqual(["D", "O", "G"]);
     for (const cell of dogCells) {
-      expect(cell).toBeEnabled();
-      expect(cell).toHaveClass("cell--replenished");
+      expect(cell).toBeDisabled();
+      expect(cell).toHaveClass("cell--falling", "cell--spawned");
     }
+    expect(screen.getByRole("group", { name: /garden board/ })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
 
-    fireEvent.pointerDown(dogCells[0]!, {
-      button: 0,
-      pointerId: 12,
-      ...mockCellCenter(dogCells[0]!),
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(GRAVITY_ANIMATION_MS);
     });
-    expect(document.querySelector(".cell--replenished")).toBeNull();
-    fireEvent.pointerCancel(document, { pointerId: 12 });
+    expect(document.querySelector(".cell--falling")).toBeNull();
+    expect(boardCells()[0]).toBeEnabled();
 
-    traceCells(...dogCells);
+    traceCells(...boardCells().slice(0, 3));
 
     expect(
       screen.getByText("DOG", { selector: "#current-word" }),
@@ -513,36 +526,158 @@ describe("App", () => {
     expect(endlessTileRandom).toHaveBeenCalledTimes(6);
   });
 
-  test("uses the same updated word-length scoring in Endless mode", async () => {
-    const user = userEvent.setup();
-    render(
-      <App
-        boards={TEST_BOARDS}
-        dictionaryLoader={() => Promise.resolve(new Set(["cate"]))}
-        endlessTileRandom={() => 0}
-      />,
-    );
-    expect(await screen.findByText(READY_MESSAGE)).toBeInTheDocument();
+  test("automatically highlights and scores a new gravity word", async () => {
+    const cascadeBoard: BoardDefinition = {
+      id: "cascade",
+      label: "Cascade board",
+      letters: [
+        [..."ABC"],
+        [..."DEF"],
+        [..."CAT"],
+      ],
+    };
+    const randomValues = [
+      5.1 / 36,
+      22.1 / 36,
+      12.1 / 36,
+      0,
+      0,
+      0,
+    ];
+    const endlessTileRandom = vi.fn(() => randomValues.shift() ?? 0);
+    await renderReadyWithFakeTimers(new Set(["cat", "dog"]), {
+      boards: [cascadeBoard],
+      endlessTileRandom,
+    });
 
-    await user.click(screen.getByRole("button", { name: /Endless/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Endless/ }));
+    traceCells(...boardCells().slice(6, 9));
+
+    expect(boardCells().map((cell) => cell.textContent)).toEqual([
+      "D", "O", "G",
+      "A", "B", "C",
+      "D", "E", "F",
+    ]);
+    expect(
+      screen.getByRole("button", { name: "D, row 3, column 1" }),
+    ).toHaveAttribute("data-source-row", "1");
+    expect(screen.getByText("1", { selector: "#score-value" })).toBeInTheDocument();
+    expect(boardCells()[0]).toBeDisabled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(GRAVITY_ANIMATION_MS - 1);
+    });
+    expect(screen.queryByText("dog", { selector: "li" })).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(screen.getByText("Cascade 1 · +1 point")).toBeInTheDocument();
+    expect(screen.getByText("dog", { selector: "li" })).toBeInTheDocument();
+    expect(screen.getByText("2", { selector: "#score-value" })).toBeInTheDocument();
+    for (const cell of boardCells().slice(0, 3)) {
+      expect(cell).toHaveClass("cell--cascade");
+    }
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CASCADE_HIGHLIGHT_MS);
+    });
+    expect(boardCells().slice(0, 3).map((cell) => cell.textContent)).toEqual([
+      "A",
+      "A",
+      "A",
+    ]);
+    expect(endlessTileRandom).toHaveBeenCalledTimes(6);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(GRAVITY_ANIMATION_MS);
+    });
+    expect(boardCells()[0]).toBeEnabled();
+    expect(
+      screen.getByRole("group", { name: /cascade board/i }),
+    ).toHaveAttribute("aria-busy", "false");
+    expect(screen.getByText("1:00", { selector: "#timer-value" })).toBeInTheDocument();
+  });
+
+  test("caps automatic cascades on a continuously matching board", async () => {
+    const words = [
+      "cat",
+      "dog",
+      "hen",
+      "rat",
+      "sun",
+      "top",
+      "win",
+      "far",
+      "lip",
+      "men",
+    ];
+    const refillLetters = words.slice(1).join("").toUpperCase();
+    const randomValues = [...refillLetters].map((letter) => {
+      const index = DEFAULT_LETTER_POOL.indexOf(letter);
+      if (index < 0) throw new Error(`Missing test letter ${letter}`);
+      return (index + 0.25) / DEFAULT_LETTER_POOL.length;
+    });
+    const endlessTileRandom = vi.fn(() => randomValues.shift() ?? 0);
+    await renderReadyWithFakeTimers(new Set(words), {
+      boards: [{
+        id: "cascade-cap",
+        letters: [
+          [..."CAT"],
+          [..."XXX"],
+          [..."XXX"],
+        ],
+      }],
+      endlessTileRandom,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Endless/ }));
+    traceCells(...boardCells().slice(0, 3));
+
+    for (const [index, word] of words.slice(1, 9).entries()) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(GRAVITY_ANIMATION_MS);
+      });
+      expect(screen.getByText(word, { selector: "li" })).toBeInTheDocument();
+      expect(
+        screen.getByText(`Cascade ${index + 1} · +1 point`),
+      ).toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CASCADE_HIGHLIGHT_MS);
+      });
+    }
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(GRAVITY_ANIMATION_MS);
+    });
+    expect(screen.getByText("9", { selector: "#score-value" })).toBeInTheDocument();
+    expect(screen.getByText("9", { selector: "#found-count" })).toBeInTheDocument();
+    expect(screen.queryByText("men", { selector: "li" })).toBeNull();
+    expect(boardCells()[0]).toBeEnabled();
+    expect(endlessTileRandom).toHaveBeenCalledTimes(27);
+  });
+
+  test("uses the same updated word-length scoring in Endless mode", async () => {
+    await renderReadyWithFakeTimers(
+      new Set(["cate"]),
+      { endlessTileRandom: () => 0 },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Endless/ }));
     traceCells(...boardCells().slice(0, 4));
 
-    expect(screen.getByText("+2 points · 4 tiles refilled")).toBeInTheDocument();
+    expect(screen.getByText("+2 points · Gravity!")).toBeInTheDocument();
     expect(screen.getByText("2", { selector: "#score-value" })).toBeInTheDocument();
   });
 
-  test("does not replenish a rejected Endless path and replay restores its seed board", async () => {
+  test("rejects invalid gravity paths and replay cancels a pending cascade", async () => {
     const endlessTileRandom = vi.fn(() => 0);
-    const user = userEvent.setup();
-    render(
-      <App
-        boards={TEST_BOARDS}
-        dictionaryLoader={() => Promise.resolve(new Set(["cat"]))}
-        endlessTileRandom={endlessTileRandom}
-      />,
+    await renderReadyWithFakeTimers(
+      new Set(["cat"]),
+      { endlessTileRandom },
     );
-    expect(await screen.findByText(READY_MESSAGE)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Endless/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Endless/ }));
 
     traceCells(...boardCells().slice(0, 2));
     expect(screen.getByText("Words need at least three letters.")).toBeInTheDocument();
@@ -559,13 +694,22 @@ describe("App", () => {
       "A",
       "T",
     ]);
-    await user.click(screen.getByRole("button", { name: "Play again" }));
+    expect(endlessTileRandom).toHaveBeenCalledTimes(3);
+    fireEvent.click(screen.getByRole("button", { name: "Play again" }));
     expect(boardCells().slice(0, 3).map((cell) => cell.textContent)).toEqual([
       "C",
       "A",
       "T",
     ]);
     for (const cell of boardCells().slice(0, 3)) expect(cell).toBeEnabled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        GRAVITY_ANIMATION_MS + CASCADE_HIGHLIGHT_MS,
+      );
+    });
+    expect(endlessTileRandom).toHaveBeenCalledTimes(3);
+    expect(screen.queryByText("Cascade 1", { exact: false })).toBeNull();
   });
 
   test("restarts an active round while retaining its high score", async () => {

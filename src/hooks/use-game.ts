@@ -2,7 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BOARDS, ROUND_SECONDS } from "../config";
 import {
-  replenishBoard,
+  buildWordTrie,
+  type WordTrie,
+} from "../board-generation";
+import {
+  findBestCascadeCandidate,
+  MAX_CASCADE_DEPTH,
+  type CascadeCandidate,
+} from "../endless-cascade";
+import {
+  applyBoardGravity,
+  type GravityTileFall,
   type RandomSource,
 } from "../endless-board";
 import {
@@ -25,23 +35,47 @@ interface GameSession {
   readonly game: GameState;
   readonly board: BoardDefinition;
   readonly boardIndex: number;
+  readonly cascadeKey: number;
+  readonly cascadePhase: CascadePhase | null;
   readonly feedbackKey: number;
   readonly feedbackWord: string;
   readonly paused: boolean;
-  readonly replenishedCells: readonly string[];
   readonly snapshot: RoundSnapshot;
   readonly sourceBoard: BoardDefinition;
   readonly roundKey: number;
   readonly status: StatusMessage;
 }
 
+interface FallingPhase {
+  readonly beforeBoard: BoardDefinition;
+  /** Number of automatic words already awarded in this chain. */
+  readonly depth: number;
+  readonly falls: readonly GravityTileFall[];
+  readonly frontier: readonly Coordinate[];
+  readonly key: number;
+  readonly kind: "falling";
+}
+
+interface MatchingPhase {
+  readonly candidate: CascadeCandidate;
+  /** One-based number of the highlighted automatic word. */
+  readonly depth: number;
+  readonly key: number;
+  readonly kind: "matching";
+}
+
+type CascadePhase = FallingPhase | MatchingPhase;
+
 export interface GameController {
   readonly board: BoardDefinition;
+  readonly cascadeCells: ReadonlySet<string>;
   readonly currentWord: string;
   readonly enabled: boolean;
+  readonly gravityFalls: readonly GravityTileFall[];
+  readonly gravityKey: number;
   readonly isSelectionEnabled: () => boolean;
   readonly path: readonly Coordinate[];
-  readonly replenishedCells: ReadonlySet<string>;
+  readonly resolving: boolean;
   readonly roundKey: number;
   readonly snapshot: RoundSnapshot;
   readonly status: StatusMessage;
@@ -64,6 +98,9 @@ const EMPTY_STATUS: StatusMessage = {
 };
 
 const FEEDBACK_DURATION_MS = 3_000;
+export const GRAVITY_ANIMATION_MS = 560;
+export const CASCADE_HIGHLIGHT_MS = 480;
+const cascadeTries = new WeakMap<ReadonlySet<string>, WordTrie>();
 
 function boardAt(
   boards: readonly BoardDefinition[],
@@ -106,16 +143,12 @@ function validatorFor(dictionary: ReadonlySet<string>): ValidateWord {
 
 function submissionMessage(
   result: SubmissionResult,
-  replenishedCellCount = 0,
+  usesGravity = false,
 ): StatusMessage {
   if (result.accepted) {
     const suffix = result.points === 1 ? "point" : "points";
     return {
-      text: `+${result.points} ${suffix}${
-        replenishedCellCount > 0
-          ? ` · ${replenishedCellCount} tiles refilled`
-          : ""
-      }`,
+      text: `+${result.points} ${suffix}${usesGravity ? " · Gravity!" : ""}`,
       tone: "success",
     };
   }
@@ -137,11 +170,34 @@ function submissionMessage(
   };
 }
 
+function cascadeMessage(depth: number, points: number): StatusMessage {
+  return {
+    text: `Cascade ${depth} · +${points} ${points === 1 ? "point" : "points"}`,
+    tone: "success",
+  };
+}
+
 function roundCompleteStatus(score: number): StatusMessage {
   return {
     text: `Round complete — ${score} ${score === 1 ? "point" : "points"}.`,
     tone: "neutral",
   };
+}
+
+function phaseDelay(durationMs: number): number {
+  if (typeof window.matchMedia !== "function") return durationMs;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? 0
+    : durationMs;
+}
+
+function cascadeTrieFor(dictionary: ReadonlySet<string>): WordTrie {
+  const existing = cascadeTries.get(dictionary);
+  if (existing !== undefined) return existing;
+
+  const trie = buildWordTrie(dictionary);
+  cascadeTries.set(dictionary, trie);
+  return trie;
 }
 
 export function useGame(
@@ -150,6 +206,10 @@ export function useGame(
   mode: GameMode = "classic",
   endlessTileRandom: RandomSource = Math.random,
 ): GameController {
+  const cascadeTrie = useMemo<WordTrie | null>(
+    () => mode === "endless" ? cascadeTrieFor(dictionary) : null,
+    [dictionary, mode],
+  );
   const [session, setSession] = useState<GameSession>(() => {
     const board = boardAt(boards, 0);
     const game = new GameState({
@@ -164,10 +224,11 @@ export function useGame(
       game,
       board,
       boardIndex: 0,
+      cascadeKey: 0,
+      cascadePhase: null,
       feedbackKey: 0,
       feedbackWord: "",
       paused: game.isPaused(),
-      replenishedCells: [],
       snapshot,
       sourceBoard: board,
       roundKey: 0,
@@ -208,7 +269,13 @@ export function useGame(
   }, [commitSession, endsAt, expired, game, paused]);
 
   useEffect(() => {
-    if (!session.feedbackWord || session.status.tone !== "success") return;
+    if (
+      session.cascadePhase !== null ||
+      !session.feedbackWord ||
+      session.status.tone !== "success"
+    ) {
+      return;
+    }
 
     const feedbackKey = session.feedbackKey;
     const timerId = window.setTimeout(() => {
@@ -233,6 +300,7 @@ export function useGame(
   }, [
     commitSession,
     game,
+    session.cascadePhase,
     session.feedbackKey,
     session.feedbackWord,
     session.status.tone,
@@ -263,7 +331,14 @@ export function useGame(
 
     const resumeRound = () => {
       const current = sessionRef.current;
-      if (current.game !== game || !current.paused || !pageHasFocus()) return;
+      if (
+        current.game !== game ||
+        current.cascadePhase !== null ||
+        !current.paused ||
+        !pageHasFocus()
+      ) {
+        return;
+      }
 
       commitSession({
         ...current,
@@ -291,6 +366,121 @@ export function useGame(
     };
   }, [commitSession, game]);
 
+  useEffect(() => {
+    const phase = session.cascadePhase;
+    if (phase === null) return;
+
+    const duration = phase.kind === "falling"
+      ? GRAVITY_ANIMATION_MS
+      : CASCADE_HIGHLIGHT_MS;
+    const timerId = window.setTimeout(() => {
+      const current = sessionRef.current;
+      const currentPhase = current.cascadePhase;
+      if (
+        current.game !== game ||
+        currentPhase === null ||
+        currentPhase.key !== phase.key ||
+        currentPhase.kind !== phase.kind
+      ) {
+        return;
+      }
+
+      const finishCascade = () => {
+        const snapshot = pageHasFocus()
+          ? current.game.resume()
+          : current.game.getSnapshot();
+        commitSession({
+          ...current,
+          cascadePhase: null,
+          feedbackWord: snapshot.expired ? "" : current.feedbackWord,
+          paused: current.game.isPaused(),
+          snapshot,
+          status: snapshot.expired
+            ? roundCompleteStatus(snapshot.score)
+            : current.status,
+        });
+      };
+
+      if (currentPhase.kind === "falling") {
+        if (
+          cascadeTrie === null ||
+          currentPhase.depth >= MAX_CASCADE_DEPTH ||
+          current.snapshot.expired
+        ) {
+          finishCascade();
+          return;
+        }
+
+        const candidate = findBestCascadeCandidate({
+          beforeBoard: currentPhase.beforeBoard.letters,
+          afterBoard: current.board.letters,
+          excludedWords: current.snapshot.foundWords,
+          frontier: currentPhase.frontier,
+          trie: cascadeTrie,
+        });
+        if (candidate === null) {
+          finishCascade();
+          return;
+        }
+
+        const result = current.game.submitWord({
+          cells: candidate.path,
+          word: candidate.word,
+        });
+        if (!result.accepted) {
+          finishCascade();
+          return;
+        }
+
+        const depth = currentPhase.depth + 1;
+        const cascadeKey = current.cascadeKey + 1;
+        commitSession({
+          ...current,
+          cascadeKey,
+          cascadePhase: {
+            candidate,
+            depth,
+            key: cascadeKey,
+            kind: "matching",
+          },
+          feedbackKey: current.feedbackKey + 1,
+          feedbackWord: result.word,
+          snapshot: result.state,
+          status: cascadeMessage(depth, result.points),
+        });
+        return;
+      }
+
+      const gravity = applyBoardGravity(
+        current.board,
+        currentPhase.candidate.path,
+        { random: endlessTileRandom },
+      );
+      const cascadeKey = current.cascadeKey + 1;
+      commitSession({
+        ...current,
+        board: gravity.board,
+        cascadeKey,
+        cascadePhase: {
+          beforeBoard: current.board,
+          depth: currentPhase.depth,
+          falls: gravity.falls,
+          frontier: gravity.frontier,
+          key: cascadeKey,
+          kind: "falling",
+        },
+      });
+    }, phaseDelay(duration));
+
+    return () => window.clearTimeout(timerId);
+  }, [
+    cascadeTrie,
+    commitSession,
+    endlessTileRandom,
+    game,
+    session.cascadePhase,
+  ]);
+
   const resetRound = useCallback((advanceBoard: boolean) => {
     const current = sessionRef.current;
     setPath([]);
@@ -310,10 +500,11 @@ export function useGame(
       ...current,
       board,
       boardIndex,
+      cascadeKey: current.cascadeKey + 1,
+      cascadePhase: null,
       feedbackKey: current.feedbackKey + 1,
       feedbackWord: "",
       paused: current.game.isPaused(),
-      replenishedCells: [],
       snapshot,
       sourceBoard: board,
       roundKey: current.roundKey + 1,
@@ -338,12 +529,7 @@ export function useGame(
     const current = sessionRef.current;
     const hasSuccessFeedback =
       Boolean(current.feedbackWord) && current.status.tone === "success";
-    const hasReplenishmentMarker = current.replenishedCells.length > 0;
-    if (
-      !hasSuccessFeedback &&
-      current.status !== READY_STATUS &&
-      !hasReplenishmentMarker
-    ) {
+    if (!hasSuccessFeedback && current.status !== READY_STATUS) {
       return;
     }
 
@@ -351,7 +537,6 @@ export function useGame(
       ...current,
       feedbackKey: current.feedbackKey + 1,
       feedbackWord: "",
-      replenishedCells: [],
       status: EMPTY_STATUS,
     });
   }, [commitSession]);
@@ -373,21 +558,43 @@ export function useGame(
     }
 
     const result = current.game.submitWord({ word, cells: submittedPath });
-    const replenished = result.accepted && mode === "endless";
+    if (result.accepted && mode === "endless") {
+      const gravity = applyBoardGravity(currentBoard, submittedPath, {
+        random: endlessTileRandom,
+      });
+      const snapshot = current.game.pause();
+      const cascadeKey = current.cascadeKey + 1;
+      commitSession({
+        ...current,
+        board: gravity.board,
+        cascadeKey,
+        cascadePhase: {
+          beforeBoard: currentBoard,
+          depth: 0,
+          falls: gravity.falls,
+          frontier: gravity.frontier,
+          key: cascadeKey,
+          kind: "falling",
+        },
+        feedbackKey: current.feedbackKey + 1,
+        feedbackWord: result.word,
+        paused: current.game.isPaused(),
+        snapshot,
+        status: snapshot.expired
+          ? roundCompleteStatus(snapshot.score)
+          : submissionMessage(result, true),
+      });
+      return;
+    }
+
     commitSession({
       ...current,
-      board: replenished
-        ? replenishBoard(currentBoard, submittedPath, {
-            random: endlessTileRandom,
-          })
-        : currentBoard,
       feedbackKey: current.feedbackKey + 1,
       feedbackWord: result.accepted ? result.word : "",
-      replenishedCells: replenished ? submittedPath.map(cellKey) : [],
       snapshot: result.state,
       status: result.state.expired
         ? roundCompleteStatus(result.state.score)
-        : submissionMessage(result, replenished ? submittedPath.length : 0),
+        : submissionMessage(result),
     });
   }, [commitSession, endlessTileRandom, mode]);
 
@@ -404,10 +611,11 @@ export function useGame(
     commitSession({
       ...current,
       board,
+      cascadeKey: current.cascadeKey + 1,
+      cascadePhase: null,
       feedbackKey: current.feedbackKey + 1,
       feedbackWord: "",
       paused: current.game.isPaused(),
-      replenishedCells: [],
       snapshot,
       sourceBoard: board,
       roundKey: current.roundKey + 1,
@@ -417,20 +625,32 @@ export function useGame(
   const playNextBoard = useCallback(() => resetRound(true), [resetRound]);
   const isSelectionEnabled = useCallback(() => {
     const current = sessionRef.current;
-    return !current.game.isPaused() && !current.game.isExpired();
+    return current.cascadePhase === null &&
+      !current.game.isPaused() &&
+      !current.game.isExpired();
   }, []);
 
   const { snapshot } = session;
   const usedCells = new Set(snapshot.usedCells);
-  const replenishedCells = new Set(session.replenishedCells);
+  const cascadeCells = new Set(
+    session.cascadePhase?.kind === "matching"
+      ? session.cascadePhase.candidate.path.map(cellKey)
+      : [],
+  );
+  const gravityFalls = session.cascadePhase?.kind === "falling"
+    ? session.cascadePhase.falls
+    : [];
 
   return {
     board,
+    cascadeCells,
     currentWord: pathWord || session.feedbackWord,
-    enabled: !snapshot.expired,
+    enabled: !snapshot.expired && session.cascadePhase === null,
+    gravityFalls,
+    gravityKey: session.cascadeKey,
     isSelectionEnabled,
     path,
-    replenishedCells,
+    resolving: session.cascadePhase !== null,
     roundKey: session.roundKey,
     snapshot,
     status: session.status,

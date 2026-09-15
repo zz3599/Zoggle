@@ -3,7 +3,7 @@ import type { BoardDefinition, Coordinate } from "./types";
 
 export type RandomSource = () => number;
 
-export interface ReplenishBoardOptions {
+export interface GravityBoardOptions {
   readonly letterPool?: string | readonly string[];
   readonly random?: RandomSource;
 }
@@ -45,16 +45,6 @@ function normalizeLetterPool(
   });
 }
 
-function pickReplacement(
-  currentLetter: string,
-  letterPool: readonly string[],
-  random: RandomSource,
-): string {
-  const alternatives = letterPool.filter((letter) => letter !== currentLetter);
-  const candidates = alternatives.length > 0 ? alternatives : letterPool;
-  return pickFromPool(candidates, random);
-}
-
 function pickFromPool(
   letterPool: readonly string[],
   random: RandomSource,
@@ -86,7 +76,7 @@ function validatedRemovedCells(
       row >= board.letters.length ||
       col >= (board.letters[row]?.length ?? 0)
     ) {
-      throw new RangeError("An Endless replacement cell is outside the board.");
+      throw new RangeError("An Endless removal cell is outside the board.");
     }
 
     removedCells.add(coordinateKey({ row, col }));
@@ -114,7 +104,7 @@ export function applyBoardGravity(
   {
     letterPool = DEFAULT_LETTER_POOL,
     random = Math.random,
-  }: ReplenishBoardOptions = {},
+  }: GravityBoardOptions = {},
 ): GravityBoardResult {
   if (cells.length === 0) {
     return { board, falls: [], frontier: [] };
@@ -177,57 +167,4 @@ export function applyBoardGravity(
     falls,
     frontier,
   };
-}
-
-/**
- * Replace only the submitted tiles using the generator's English-frequency
- * pool. This deliberately avoids re-solving the board so a refill is instant.
- */
-export function replenishBoard(
-  board: BoardDefinition,
-  cells: readonly Coordinate[],
-  {
-    letterPool = DEFAULT_LETTER_POOL,
-    random = Math.random,
-  }: ReplenishBoardOptions = {},
-): BoardDefinition {
-  if (cells.length === 0) return board;
-
-  const normalizedPool = normalizeLetterPool(letterPool);
-  const letters = [...board.letters];
-  const mutableRows = new Map<number, string[]>();
-  const replacedCells = new Set<string>();
-
-  for (const { row, col } of cells) {
-    if (
-      !Number.isInteger(row) ||
-      !Number.isInteger(col) ||
-      row < 0 ||
-      col < 0 ||
-      row >= letters.length ||
-      col >= (letters[row]?.length ?? 0)
-    ) {
-      throw new RangeError("An Endless replacement cell is outside the board.");
-    }
-
-    const key = `${row},${col}`;
-    if (replacedCells.has(key)) continue;
-    replacedCells.add(key);
-
-    let mutableRow = mutableRows.get(row);
-    if (mutableRow === undefined) {
-      mutableRow = [...letters[row]!];
-      mutableRows.set(row, mutableRow);
-      letters[row] = mutableRow;
-    }
-
-    const currentLetter = mutableRow[col]!;
-    mutableRow[col] = pickReplacement(
-      currentLetter,
-      normalizedPool,
-      random,
-    );
-  }
-
-  return { ...board, letters };
 }

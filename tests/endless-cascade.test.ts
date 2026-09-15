@@ -4,6 +4,7 @@ import { test } from "vitest";
 import { buildWordTrie } from "../src/board-generation";
 import {
   MAX_CASCADE_DEPTH,
+  MAX_CASCADE_WORD_LENGTH,
   compareCascadeCandidates,
   findBestCascadeCandidate,
   type CascadeCandidate,
@@ -11,6 +12,27 @@ import {
 
 test("caps automatic Endless cascades", () => {
   assert.equal(MAX_CASCADE_DEPTH, 8);
+  assert.equal(MAX_CASCADE_WORD_LENGTH, 7);
+});
+
+test("caps automatic words at seven letters while preserving longest-first order", () => {
+  const candidate = findBestCascadeCandidate({
+    beforeBoard: ["XXXXXXXX"],
+    afterBoard: ["CATERERS"],
+    frontier: [
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+      { row: 0, col: 2 },
+      { row: 0, col: 3 },
+      { row: 0, col: 4 },
+      { row: 0, col: 5 },
+      { row: 0, col: 6 },
+      { row: 0, col: 7 },
+    ],
+    trie: buildWordTrie(["cater", "caterer", "caterers"]),
+  });
+
+  assert.equal(candidate?.word, "caterer");
 });
 
 test("selects the longest genuinely new frontier word", () => {

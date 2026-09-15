@@ -1,15 +1,19 @@
 import { useMemo, useRef, type CSSProperties } from "react";
 
+import type { GravityTileFall } from "../endless-board";
 import { useSelectionController } from "../hooks/use-selection-controller";
 import type { BoardDefinition, Coordinate } from "../types";
 
 interface BoardProps {
   readonly board: BoardDefinition;
+  readonly cascadeCells: ReadonlySet<string>;
   readonly enabled: boolean;
+  readonly gravityFalls: readonly GravityTileFall[];
+  readonly gravityKey: number;
   readonly isEnabled: () => boolean;
   readonly path: readonly Coordinate[];
-  readonly replenishedCells: ReadonlySet<string>;
   readonly resetKey: number;
+  readonly resolving: boolean;
   readonly usedCells: ReadonlySet<string>;
   readonly onPathChange: (path: readonly Coordinate[]) => void;
   readonly onSubmit: (path: readonly Coordinate[]) => void;
@@ -19,25 +23,45 @@ function cellKey({ row, col }: Coordinate): string {
   return `${row},${col}`;
 }
 
+function fallOffset(fallRows: number): string {
+  if (fallRows <= 0) return "0px";
+
+  const gapOffsets = Array.from(
+    { length: fallRows },
+    () => "var(--board-gap)",
+  ).join(" - ");
+  return `calc(-${fallRows * 100}% - ${gapOffsets})`;
+}
+
 export function Board({
   board,
+  cascadeCells,
   enabled,
+  gravityFalls,
+  gravityKey,
   isEnabled,
   path,
-  replenishedCells,
   resetKey,
+  resolving,
   usedCells,
   onPathChange,
   onSubmit,
 }: BoardProps) {
   const boardRef = useRef<HTMLDivElement>(null);
   const activeCells = useMemo(() => new Set(path.map(cellKey)), [path]);
+  const fallsByDestination = useMemo(
+    () => new Map(
+      gravityFalls.map((fall) => [cellKey(fall.destination), fall]),
+    ),
+    [gravityFalls],
+  );
   const boardLabel = board.label ?? `${board.id} board`;
+  const selectionEnabled = enabled && !resolving;
 
   useSelectionController({
     boardRef,
-    enabled,
-    isEnabled,
+    enabled: selectionEnabled,
+    isEnabled: () => !resolving && isEnabled(),
     isCellAvailable: (coordinate) => !usedCells.has(cellKey(coordinate)),
     onPathChange,
     onSubmit,
@@ -49,44 +73,70 @@ export function Board({
   } as CSSProperties;
 
   return (
-    <div
-      ref={boardRef}
-      className={`board${enabled ? "" : " board--disabled"}`}
-      role="group"
-      aria-disabled={!enabled}
-      aria-label={`${boardLabel}, ${board.letters.length} by ${board.letters.length}`}
-      style={boardStyle}
-    >
-      {board.letters.flatMap((row, rowIndex) =>
-        row.map((letter, colIndex) => {
-          const key = `${rowIndex},${colIndex}`;
-          const used = usedCells.has(key);
-          const active = activeCells.has(key);
-          const replenished = replenishedCells.has(key);
-          const className = [
-            "cell",
-            used && "cell--used",
-            active && "cell--active",
-            replenished && "cell--replenished",
-          ]
-            .filter(Boolean)
-            .join(" ");
+    <div className="board-viewport">
+      <div
+        ref={boardRef}
+        className={[
+          "board",
+          !enabled && "board--disabled",
+          resolving && "board--resolving",
+        ].filter(Boolean).join(" ")}
+        role="group"
+        aria-busy={resolving}
+        aria-disabled={!selectionEnabled}
+        aria-label={`${boardLabel}, ${board.letters.length} by ${board.letters.length}`}
+        style={boardStyle}
+      >
+        {board.letters.flatMap((row, rowIndex) =>
+          row.map((letter, colIndex) => {
+            const key = `${rowIndex},${colIndex}`;
+            const used = usedCells.has(key);
+            const active = activeCells.has(key);
+            const cascade = cascadeCells.has(key);
+            const fall = fallsByDestination.get(key);
+            const className = [
+              "cell",
+              used && "cell--used",
+              active && "cell--active",
+              fall && "cell--falling",
+              fall?.spawned && "cell--spawned",
+              cascade && "cell--cascade",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            const cellStyle = fall
+              ? { "--fall-offset": fallOffset(fall.fallRows) } as CSSProperties
+              : undefined;
+            const animationKey = fall
+              ? `gravity-${gravityKey}`
+              : cascade
+                ? `cascade-${gravityKey}`
+                : "settled";
 
-          return (
-            <button
-              key={`${key}:${letter}`}
-              type="button"
-              className={className}
-              data-row={rowIndex}
-              data-col={colIndex}
-              aria-label={`${letter}, row ${rowIndex + 1}, column ${colIndex + 1}`}
-              disabled={!enabled || used}
-            >
-              {letter}
-            </button>
-          );
-        }),
-      )}
+            return (
+              <div key={key} className="cell-slot">
+                <button
+                  key={`${key}:${animationKey}`}
+                  type="button"
+                  className={className}
+                  data-row={rowIndex}
+                  data-col={colIndex}
+                  data-fall-rows={fall?.fallRows}
+                  data-gravity={
+                    fall ? (fall.spawned ? "spawned" : "falling") : undefined
+                  }
+                  data-source-row={fall?.sourceRow ?? undefined}
+                  aria-label={`${letter}, row ${rowIndex + 1}, column ${colIndex + 1}`}
+                  disabled={!selectionEnabled || used}
+                  style={cellStyle}
+                >
+                  {letter}
+                </button>
+              </div>
+            );
+          }),
+        )}
+      </div>
     </div>
   );
 }

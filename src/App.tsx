@@ -110,11 +110,14 @@ function GameScreen({
 
           <Board
             board={board}
+            cascadeCells={game?.cascadeCells ?? EMPTY_USED_CELLS}
             enabled={game?.enabled ?? false}
+            gravityFalls={game?.gravityFalls ?? []}
+            gravityKey={game?.gravityKey ?? 0}
             isEnabled={game?.isSelectionEnabled ?? selectionDisabled}
             path={game?.path ?? EMPTY_PATH}
-            replenishedCells={game?.replenishedCells ?? EMPTY_USED_CELLS}
             resetKey={game?.roundKey ?? 0}
+            resolving={game?.resolving ?? false}
             usedCells={game?.usedCells ?? EMPTY_USED_CELLS}
             onPathChange={game?.onPathChange ?? ignorePath}
             onSubmit={game?.onSubmit ?? ignorePath}
