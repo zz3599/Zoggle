@@ -347,7 +347,7 @@ h2 {
 }
 
 .cell--cascade:not(.cell--active):not(.cell--falling) {
-  animation: cascade-highlight 480ms ease-in-out both;
+  animation: cascade-highlight 1s ease-in-out both;
   will-change: transform;
 }
 

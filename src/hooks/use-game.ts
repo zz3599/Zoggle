@@ -99,7 +99,7 @@ const EMPTY_STATUS: StatusMessage = {
 
 const FEEDBACK_DURATION_MS = 3_000;
 export const GRAVITY_ANIMATION_MS = 560;
-export const CASCADE_HIGHLIGHT_MS = 480;
+export const CASCADE_HIGHLIGHT_MS = 1_000;
 const cascadeTries = new WeakMap<ReadonlySet<string>, WordTrie>();
 
 function boardAt(
