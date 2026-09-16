@@ -8,9 +8,9 @@ import { scoreWord } from "./rules";
 import type { Coordinate } from "./types";
 
 /** Prevent a word-dense Endless board from cascading without yielding control. */
-export const MAX_CASCADE_DEPTH = 8;
+export const MAX_CASCADE_DEPTH = 2;
 /** Keep automatic matches readable instead of surfacing dictionary curiosities. */
-export const MAX_CASCADE_WORD_LENGTH = 7;
+export const MAX_CASCADE_WORD_LENGTH = 5;
 
 export interface CascadeCandidate extends TraceableWord {
   readonly score: number;
