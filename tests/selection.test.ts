@@ -134,31 +134,40 @@ test("extendPath adds adjacent unused cells without mutating the path", () => {
   assert.deepEqual(path, [{ row: 0, col: 0 }]);
 });
 
-test("extendPath ignores the current cell, distant cells, and visited cells", () => {
+test("extendPath ignores current, distant, and older visited cells", () => {
   const path = [
     { row: 0, col: 0 },
     { row: 0, col: 1 },
     { row: 1, col: 1 },
+    { row: 1, col: 0 },
   ];
 
-  assert.equal(extendPath(path, { row: 1, col: 1 }), path);
+  assert.equal(extendPath(path, { row: 1, col: 0 }), path);
   assert.equal(extendPath(path, { row: 3, col: 3 }), path);
   assert.equal(extendPath(path, { row: 0, col: 0 }), path);
 });
 
-test("extendPath does not remove a cell when moving to its predecessor", () => {
+test("extendPath removes only the current cell when tracing to its predecessor", () => {
   const path = [
     { row: 0, col: 0 },
     { row: 0, col: 1 },
-    { row: 1, col: 1 },
+    { row: 0, col: 2 },
   ];
 
   const result = extendPath(path, { row: 0, col: 1 });
 
-  assert.equal(result, path);
+  assert.deepEqual(result, [
+    { row: 0, col: 0 },
+    { row: 0, col: 1 },
+  ]);
+  assert.deepEqual(path, [
+    { row: 0, col: 0 },
+    { row: 0, col: 1 },
+    { row: 0, col: 2 },
+  ]);
 });
 
-test("extendPath extends from the last cell after revisiting a predecessor", () => {
+test("extendPath extends from the traced-back cell", () => {
   const path = [
     { row: 3, col: 3 },
     { row: 3, col: 4 },
@@ -170,7 +179,6 @@ test("extendPath extends from the last cell after revisiting a predecessor", () 
   assert.deepEqual(extended, [
     { row: 3, col: 3 },
     { row: 3, col: 4 },
-    { row: 3, col: 5 },
     { row: 4, col: 4 },
   ]);
 });
@@ -201,7 +209,7 @@ test("SelectionController submits a path built across pointer events", () => {
   assert.deepEqual(harness.pathChanges.at(-1), []);
 });
 
-test("SelectionController keeps SENT selected when crossing back over E", () => {
+test("SelectionController deselects the current tile when tracing back one step", () => {
   const harness = createControllerHarness();
   const s = harness.cell(3, 3);
   const e = harness.cell(3, 4);
@@ -209,17 +217,80 @@ test("SelectionController keeps SENT selected when crossing back over E", () => 
   const t = harness.cell(4, 4);
 
   harness.controller.handlePointerDown(pointerEventAt(s));
-  for (const cell of [e, n, e, t]) {
+  for (const cell of [e, n]) {
     harness.setTargetAtPoint(cell);
     harness.controller.handlePointerMove(pointerEventAt(cell));
   }
+  harness.setTargetAtPoint(e);
+  harness.controller.handlePointerMove(pointerEventAt(e));
+  assert.deepEqual(harness.controller.path, [
+    { row: 3, col: 3 },
+    { row: 3, col: 4 },
+  ]);
+
+  harness.setTargetAtPoint(t);
+  harness.controller.handlePointerMove(pointerEventAt(t));
   harness.controller.handlePointerUp(pointerEventAt(t));
 
   assert.deepEqual(harness.submissions, [[
     { row: 3, col: 3 },
     { row: 3, col: 4 },
-    { row: 3, col: 5 },
     { row: 4, col: 4 },
+  ]]);
+});
+
+test("SelectionController traces back one step at the final pointer position", () => {
+  const harness = createControllerHarness();
+  const first = harness.cell(0, 0);
+  const second = harness.cell(0, 1);
+  const third = harness.cell(0, 2);
+
+  harness.controller.handlePointerDown(pointerEventAt(first));
+  for (const cell of [second, third]) {
+    harness.setTargetAtPoint(cell);
+    harness.controller.handlePointerMove(pointerEventAt(cell));
+  }
+
+  harness.setTargetAtPoint(second);
+  harness.controller.handlePointerUp(pointerEventAt(second));
+
+  assert.deepEqual(harness.submissions, [[
+    { row: 0, col: 0 },
+    { row: 0, col: 1 },
+  ]]);
+});
+
+test("SelectionController ignores an older visited tile", () => {
+  const harness = createControllerHarness();
+  const first = harness.cell(0, 0);
+  const second = harness.cell(0, 1);
+  const third = harness.cell(1, 1);
+  const fourth = harness.cell(1, 0);
+
+  harness.controller.handlePointerDown(pointerEventAt(first));
+  for (const cell of [second, third, fourth]) {
+    harness.setTargetAtPoint(cell);
+    harness.controller.handlePointerMove(pointerEventAt(cell));
+  }
+
+  const changeCount = harness.pathChanges.length;
+  harness.setTargetAtPoint(first);
+  harness.controller.handlePointerMove(pointerEventAt(first));
+
+  assert.equal(harness.pathChanges.length, changeCount);
+  assert.deepEqual(harness.controller.path, [
+    { row: 0, col: 0 },
+    { row: 0, col: 1 },
+    { row: 1, col: 1 },
+    { row: 1, col: 0 },
+  ]);
+
+  harness.controller.handlePointerUp(pointerEventAt(first));
+  assert.deepEqual(harness.submissions, [[
+    { row: 0, col: 0 },
+    { row: 0, col: 1 },
+    { row: 1, col: 1 },
+    { row: 1, col: 0 },
   ]]);
 });
 

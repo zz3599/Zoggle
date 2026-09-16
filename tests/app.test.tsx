@@ -275,6 +275,42 @@ describe("App", () => {
     fireEvent.pointerCancel(document, { pointerId: 11 });
   });
 
+  test("updates the live selection when tracing back one tile", async () => {
+    await renderReady();
+    const header = boardHeader();
+    const [c, a, t] = boardCells();
+    if (!c || !a || !t) throw new Error("Expected the CAT board cells");
+
+    fireEvent.pointerDown(c, {
+      button: 0,
+      pointerId: 11,
+      ...mockCellCenter(c),
+    });
+    for (const cell of [a, t]) {
+      const center = mockCellCenter(cell);
+      setElementAtPoint(cell);
+      fireEvent.pointerMove(document, { pointerId: 11, ...center });
+    }
+
+    expect(
+      within(header).getByText("CAT", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(t).toHaveClass("cell--active");
+
+    const aCenter = mockCellCenter(a);
+    setElementAtPoint(a);
+    fireEvent.pointerMove(document, { pointerId: 11, ...aCenter });
+
+    expect(
+      within(header).getByText("CA", { selector: "#current-word" }),
+    ).toBeInTheDocument();
+    expect(c).toHaveClass("cell--active");
+    expect(a).toHaveClass("cell--active");
+    expect(t).not.toHaveClass("cell--active");
+
+    fireEvent.pointerCancel(document, { pointerId: 11 });
+  });
+
   test("shows accepted word feedback in the board header for three seconds", async () => {
     await renderReadyWithFakeTimers();
     const first = screen.getByRole("button", {
