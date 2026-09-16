@@ -181,6 +181,9 @@ export function findBestCascadeCandidate({
     });
   }
 
-  candidates.sort(compareCascadeCandidates);
-  return candidates[0] ?? null;
+  if (candidates.length === 0){
+    return null;
+  }
+  const randomIndex = Math.floor(Math.random() * candidates.length);
+  return candidates[randomIndex] ?? null;
 }
