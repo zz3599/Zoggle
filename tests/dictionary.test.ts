@@ -12,8 +12,11 @@ import {
 const generatedWords: unknown = JSON.parse(
   readFileSync(resolve("assets/playable-words.json"), "utf8"),
 );
+const sourceEntries: unknown = JSON.parse(
+  readFileSync(resolve("assets/dictionary.json"), "utf8"),
+);
 
-test("dictionaryFromObject keeps only playable Webster keys", () => {
+test("dictionaryFromObject keeps only lowercase playable keys", () => {
   const dictionary = dictionaryFromObject({
     cat: "a feline",
     ox: "too short",
@@ -29,7 +32,7 @@ test("dictionaryFromObject keeps only playable Webster keys", () => {
   assert.equal(dictionary.has("NASA"), false);
 });
 
-test("generated dictionary includes regular and irregular inflections", () => {
+test("generated dictionary includes common inflections without the reported archaic entry", () => {
   const dictionary = dictionaryFromArray(generatedWords);
 
   for (const word of [
@@ -53,8 +56,8 @@ test("generated dictionary includes regular and irregular inflections", () => {
   }
 
   for (const word of [
+    "adact",
     "runned",
-    "taked",
     "quizes",
     "potatos",
     "compeled",
@@ -63,6 +66,31 @@ test("generated dictionary includes regular and irregular inflections", () => {
     "qwerty",
   ]) {
     assert.equal(dictionary.has(word), false, word);
+  }
+});
+
+test("generated dictionary exactly matches the normalized source keys", () => {
+  assert.ok(Array.isArray(generatedWords));
+  assert.ok(
+    sourceEntries !== null &&
+      typeof sourceEntries === "object" &&
+      !Array.isArray(sourceEntries),
+  );
+
+  const expectedWords = [
+    ...new Set(
+      Object.keys(sourceEntries)
+        .map((word) => word.toLowerCase())
+        .filter((word) => /^[a-z]{3,}$/.test(word)),
+    ),
+  ].sort();
+
+  assert.equal(expectedWords.length, 117_460);
+  assert.deepEqual(generatedWords, expectedWords);
+
+  for (const word of generatedWords) {
+    assert.equal(typeof word, "string");
+    assert.match(word, /^[a-z]{3,}$/);
   }
 });
 

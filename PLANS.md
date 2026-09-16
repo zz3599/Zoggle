@@ -110,19 +110,18 @@ dictionary definitions inside the annealing loop.
 2. Produce candidate concepts through a versioned `ThemeWordResolver`. Start
    with exact theme terms and reviewed include/exclude/alias overrides, then use
    a structured model-assisted snapshot to propose single-word English lemmas
-   in `core`, `strong`, and `related` tiers. A deterministic search over Webster
+   in `core`, `strong`, and `related` tiers. A deterministic search over source
    headwords and definitions can provide lower-weight supporting evidence, but
    plain definition substring matches must not establish membership because
-   Webster is polysemous and contains noisy examples and cross-references. The
-   resolver proposes candidates only; it never decides what is playable.
-3. Ground every candidate in the local data. Require a matching Webster
+   the dictionary is polysemous and contains noisy examples and cross-references.
+   The resolver proposes candidates only; it never decides what is playable.
+3. Ground every candidate in the local data. Require a matching source
    headword and at least one form in `assets/playable-words.json`; discard model
    inventions, phrases, punctuation, capitalization, and unsupported proper
-   nouns. Rebuild the lemma-to-surface-form index using the same noun, verb, and
-   adjective calls to `wink-lemmatizer` as `generate-dictionary.mjs`, then add
-   only attested playable inflections. For an ambiguous surface form, keep the
-   highest-weight source with a stable lemma/POS tie breaker rather than adding
-   weights together.
+   nouns. Build a versioned lemma-to-surface-form index from attested source
+   entries rather than inventing inflections. For an ambiguous surface form,
+   keep the highest-weight source with a stable lemma/POS tie breaker rather
+   than adding weights together.
 4. Convert evidence to versioned integer weights so ordering never depends on
    floating-point or provider-specific confidence values. Give direct/core
    lemmas the highest tier, cap model and definition-retrieval evidence below
@@ -153,7 +152,7 @@ dictionary definitions inside the annealing loop.
 
    - format, resolver, weighting, and pool-recipe versions;
    - original and normalized theme plus its cache key;
-   - digests of the normalized Webster data, playable words, curated overrides,
+   - digests of the normalized source data, playable words, curated overrides,
      and any model-produced candidate snapshot;
    - sorted word records with `word`, `lemma`, relation tier, integer weight,
      derivation, and evidence source;
@@ -239,7 +238,7 @@ dictionary definitions inside the annealing loop.
 ## Possible follow-ups
 
 - Rank with a frequency-labelled common-word corpus so familiar words count
-  more than obscure Webster entries.
+  more than obscure dictionary entries.
 - Revisit Classic's cross-word tile-locking rule if conventional Boggle
   behavior is desired; doing so changes the gameplay model rather than board
   generation.

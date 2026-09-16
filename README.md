@@ -22,7 +22,8 @@ Both modes share these rules:
 2. Find as many words as possible on the NxN board. N=6 for now. This is easy to tune in TypeScript.
    1. Words must be at least 3 letters long and exist in the dictionary.
    2. Each letter after the first must be a horizontal, vertical, or diagonal neighbor of the one before it.
-   3. No capitalized (e.g., acronyms) or hyphenated words are allowed.
+   3. Dictionary entries are normalized to lowercase ASCII; entries containing
+      punctuation or spaces are not allowed.
    4. No individual tile may be used more than once within one word.
    5. Scoring:
 
@@ -42,16 +43,18 @@ Both modes share these rules:
    they can also start a new board.
 
 ## Dictionary used
-The app combines
-[Webster's English Dictionary](https://github.com/matthewreagan/WebstersEnglishDictionary)
-from `assets/dictionary.json` with the
-[an-array-of-english-words](https://github.com/words/an-array-of-english-words)
-word-game list, which is derived from Letterpress. Webster supplies headwords
-but omits most inflections. During generation, a WordNet-aware lemmatizer keeps
-the supplement's verified surface spellings whose base form is in Webster,
-including `caters` and irregular forms. `npm run generate:dictionary` builds
-the compact `assets/playable-words.json` file consumed by the app. Third-party
-notices are preserved in `public/THIRD_PARTY_NOTICES.txt`.
+
+The app uses the filtered dataset from
+[Simple English Dictionary](https://github.com/nightblade9/simple-english-dictionary)
+vendored in `assets/dictionary.json`. The source is pinned to
+[revision `f862723`](https://github.com/nightblade9/simple-english-dictionary/tree/f862723761f803c1f4dbc9ac1e632a07dbcc8255)
+so dictionary generation remains offline and reproducible. Its headwords are
+normalized to lowercase ASCII and entries shorter than three letters or
+containing punctuation are excluded. `npm run generate:dictionary` builds the
+compact `assets/playable-words.json` file consumed by the app. Third-party
+notices are preserved in `public/THIRD_PARTY_NOTICES.txt`. Upstream's filtered
+variant is a kid-safe vocabulary filter, not a word-frequency list, so it may
+still contain uncommon words and proper nouns.
 
 ## Board generation
 
@@ -142,7 +145,7 @@ Use `npm run preview` to serve the production build locally.
 
 Hold the primary mouse button (or a finger on a touch screen), trace through
 neighboring tiles, and release to submit. On board 1 of the default generated
-pool, row 2 column 2 through row 2 column 3 and then row 3 column 2 spell `CAT`
+pool, row 3 column 6 through row 2 column 5 and then row 2 column 4 spell `HEN`
 and provide a quick scoring check. In Classic, verify those tiles become
 unavailable. Switch to Endless, submit a word, and verify surviving tiles fall
 smoothly while random letters enter from the top. Newly formed words should
@@ -164,5 +167,3 @@ Follow https://www.conventionalcommits.org/en/v1.0.0/ for commit messages. Each 
    1. Each board, dynamically or statically generated, is persisted on the server.
    2. Global hiscores for each board.
    3. Compare with friends hiscores for the board.
-2. Add selected proper nouns such as names and cities that are absent from the
-   source dictionary. In the canonical example, `RENO` should be accepted.

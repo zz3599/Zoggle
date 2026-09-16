@@ -14,163 +14,163 @@
   },
   "boards": [
     {
-      "id": "generated-v1-dab33bbddfdc3423",
+      "id": "generated-v1-930250415fb68007",
       "label": "Generated board 1",
       "rows": [
-        "OHGNTY",
-        "RCAISE",
-        "ETRPLD",
-        "SIOEAI",
-        "AMDNTW",
-        "FBEOUH"
+        "MOATFY",
+        "DITNEW",
+        "LERSOH",
+        "SAEGIC",
+        "PTNDAE",
+        "HIUORB"
       ],
       "metrics": {
-        "wordCount": 2252,
-        "potentialScore": 16641,
-        "longestWordLength": 13,
-        "longWordCount": 542,
+        "wordCount": 1976,
+        "potentialScore": 13078,
+        "longestWordLength": 12,
+        "longWordCount": 470,
         "cellCoverage": 36,
-        "greedyDisjointWordCount": 11
+        "greedyDisjointWordCount": 12
       }
     },
     {
-      "id": "generated-v1-76f688fdf1e10b03",
+      "id": "generated-v1-42a5b00811a8e583",
       "label": "Generated board 2",
       "rows": [
-        "BOUETO",
-        "DLMCHW",
-        "SEAIAG",
-        "NTRTNE",
-        "IOSEDA",
-        "FHPIRY"
+        "YIOGBO",
+        "DTNILO",
+        "SEAETA",
+        "PCRSMR",
+        "HATIEU",
+        "DEWHNF"
       ],
       "metrics": {
-        "wordCount": 2522,
-        "potentialScore": 23722,
-        "longestWordLength": 13,
-        "longWordCount": 803,
+        "wordCount": 2040,
+        "potentialScore": 15645,
+        "longestWordLength": 12,
+        "longWordCount": 518,
         "cellCoverage": 36,
-        "greedyDisjointWordCount": 11
+        "greedyDisjointWordCount": 12
       }
     },
     {
-      "id": "generated-v1-2677d6c62aeeb773",
+      "id": "generated-v1-1d10cee105e6109f",
       "label": "Generated board 3",
       "rows": [
-        "BHWMDY",
-        "ITIAEO",
-        "DSTNGR",
-        "NEEIAE",
-        "TARLPS",
-        "FOCUOH"
+        "FCHOTU",
+        "BODSPI",
+        "MARELA",
+        "GITANI",
+        "NESTED",
+        "EROHYW"
       ],
       "metrics": {
-        "wordCount": 2401,
-        "potentialScore": 18400,
+        "wordCount": 2188,
+        "potentialScore": 14788,
         "longestWordLength": 11,
-        "longWordCount": 678,
+        "longWordCount": 531,
         "cellCoverage": 36,
-        "greedyDisjointWordCount": 11
+        "greedyDisjointWordCount": 12
       }
     },
     {
-      "id": "generated-v1-1df51c68aef9f23f",
+      "id": "generated-v1-f747b4a177e8dc6f",
       "label": "Generated board 4",
       "rows": [
-        "FBMDGA",
-        "HUEAIN",
-        "OSTNOT",
-        "YRETIR",
-        "EHASEP",
-        "WCILOD"
+        "YUCONG",
+        "HTRAIE",
+        "AEITSD",
+        "SMDNEP",
+        "HOERAL",
+        "WFOTIB"
       ],
       "metrics": {
-        "wordCount": 2215,
-        "potentialScore": 17262,
+        "wordCount": 2066,
+        "potentialScore": 16534,
         "longestWordLength": 12,
-        "longWordCount": 572,
-        "cellCoverage": 36,
-        "greedyDisjointWordCount": 11
-      }
-    },
-    {
-      "id": "generated-v1-443d59d3fc4b882b",
-      "label": "Generated board 5",
-      "rows": [
-        "RTNDWF",
-        "EAIEOC",
-        "HPMRTH",
-        "OSEASE",
-        "ITLNGU",
-        "BAIODY"
-      ],
-      "metrics": {
-        "wordCount": 2327,
-        "potentialScore": 15416,
-        "longestWordLength": 13,
         "longWordCount": 547,
         "cellCoverage": 36,
         "greedyDisjointWordCount": 11
       }
     },
     {
-      "id": "generated-v1-56dd0b9c22f329bf",
+      "id": "generated-v1-1119070b7658b2c9",
+      "label": "Generated board 5",
+      "rows": [
+        "WTHDIH",
+        "FOACEN",
+        "BMPRSO",
+        "ASEATI",
+        "UTLNGE",
+        "YOIDER"
+      ],
+      "metrics": {
+        "wordCount": 1898,
+        "potentialScore": 11704,
+        "longestWordLength": 13,
+        "longWordCount": 385,
+        "cellCoverage": 36,
+        "greedyDisjointWordCount": 11
+      }
+    },
+    {
+      "id": "generated-v1-40ab2e0115ffa0d5",
       "label": "Generated board 6",
       "rows": [
-        "HUOWID",
-        "NDSREF",
-        "AIETLB",
-        "MGNIAE",
-        "YAROPS",
-        "HCTETO"
+        "HIGOTB",
+        "WENPAE",
+        "DSAISL",
+        "TIRTEU",
+        "HONERD",
+        "FYMACO"
       ],
       "metrics": {
-        "wordCount": 2371,
-        "potentialScore": 16208,
+        "wordCount": 1997,
+        "potentialScore": 13228,
         "longestWordLength": 12,
-        "longWordCount": 627,
+        "longWordCount": 480,
         "cellCoverage": 36,
         "greedyDisjointWordCount": 11
       }
     },
     {
-      "id": "generated-v1-149acae792299543",
+      "id": "generated-v1-1615cc52c83ef373",
       "label": "Generated board 7",
       "rows": [
-        "WTNGRD",
-        "PAIEAE",
-        "BLSTNM",
-        "OIEROI",
-        "FDASUH",
-        "HYETCO"
+        "UNIDET",
+        "OCROPI",
+        "HATELB",
+        "DESARE",
+        "WANITS",
+        "FGMOHY"
       ],
       "metrics": {
-        "wordCount": 2332,
-        "potentialScore": 17866,
-        "longestWordLength": 11,
-        "longWordCount": 650,
+        "wordCount": 1938,
+        "potentialScore": 14912,
+        "longestWordLength": 12,
+        "longWordCount": 525,
         "cellCoverage": 36,
         "greedyDisjointWordCount": 11
       }
     },
     {
-      "id": "generated-v1-67f99cf41c87b879",
+      "id": "generated-v1-7f798208007c0d95",
       "label": "Generated board 8",
       "rows": [
-        "HESOIY",
-        "CAMPRD",
-        "TIRAET",
-        "HENTLF",
-        "EGSIAB",
-        "UODWON"
+        "HOTAOU",
+        "PESTNR",
+        "DARIEG",
+        "MECALS",
+        "NHTOBI",
+        "WIDEFY"
       ],
       "metrics": {
-        "wordCount": 2397,
-        "potentialScore": 18405,
-        "longestWordLength": 13,
-        "longWordCount": 645,
+        "wordCount": 2155,
+        "potentialScore": 16890,
+        "longestWordLength": 11,
+        "longWordCount": 600,
         "cellCoverage": 36,
-        "greedyDisjointWordCount": 12
+        "greedyDisjointWordCount": 11
       }
     }
   ]

@@ -323,7 +323,7 @@ describe("App", () => {
     ).toBeNull();
   });
 
-  test("accepts an inflected form omitted by the Webster dictionary", async () => {
+  test("accepts an inflected dictionary form", async () => {
     await renderReady(dictionaryFromArray(["caters"]));
     const cells = boardCells().slice(0, 6);
 
