@@ -85,7 +85,7 @@ function GameScreen({
 
   return (
     <>
-      <Stats snapshot={snapshot} />
+      <Stats snapshot={snapshot} timeBonus={game?.timeBonus ?? null} />
 
       <div className="game-layout">
         <section className="board-panel" aria-labelledby="board-name">

@@ -101,6 +101,84 @@ test("freezes the round clock while paused and resumes from the same time", () =
   assert.equal(game.isExpired(), true);
 });
 
+test("adds time to an active round and caps the remaining clock", () => {
+  let currentTime = 1_000;
+  const game = createGameState({
+    boardId: "endless:board-1",
+    durationMs: 60_000,
+    storage: null,
+    now: () => currentTime,
+  });
+
+  currentTime = 11_000;
+  const firstBonus = game.addTime(2_000, 120_000);
+  assert.equal(firstBonus.addedMs, 2_000);
+  assert.equal(firstBonus.state.remainingMs, 52_000);
+  assert.equal(firstBonus.state.endsAt, 63_000);
+  assert.equal(firstBonus.state.durationMs, 60_000);
+
+  const cappedBonus = game.addTime(100_000, 120_000);
+  assert.equal(cappedBonus.addedMs, 68_000);
+  assert.equal(cappedBonus.state.remainingMs, 120_000);
+  assert.equal(cappedBonus.state.endsAt, 131_000);
+
+  const noRoom = game.addTime(1_000, 120_000);
+  assert.equal(noRoom.addedMs, 0);
+  assert.equal(noRoom.state.remainingMs, 120_000);
+});
+
+test("preserves added time across pause and never revives an expired round", () => {
+  let currentTime = 0;
+  const game = createGameState({
+    boardId: "endless:board-1",
+    durationMs: 60_000,
+    storage: null,
+    now: () => currentTime,
+  });
+
+  currentTime = 10_000;
+  game.pause();
+  currentTime = 100_000;
+  const pausedBonus = game.addTime(2_000, 120_000);
+  assert.equal(pausedBonus.addedMs, 2_000);
+  assert.equal(pausedBonus.state.remainingMs, 52_000);
+
+  assert.equal(game.resume().remainingMs, 52_000);
+  currentTime = 101_000;
+  assert.equal(game.getRemainingMs(), 51_000);
+
+  currentTime = 152_000;
+  const expiredBonus = game.addTime(50_000, 120_000);
+  assert.equal(expiredBonus.addedMs, 0);
+  assert.equal(expiredBonus.state.remainingMs, 0);
+  assert.equal(expiredBonus.state.expired, true);
+});
+
+test("anchors a time bonus to the accepted submission at the deadline", () => {
+  let currentTime = 0;
+  const game = createGameState({
+    boardId: "endless:board-1",
+    durationMs: 60_000,
+    storage: null,
+    now: () => currentTime,
+  });
+
+  currentTime = 59_999;
+  const submission = game.submitWord({
+    word: "cat",
+    cells: [[0, 0]],
+    points: 1,
+    valid: true,
+  });
+  assert.equal(submission.accepted, true);
+
+  currentTime = 60_005;
+  const bonus = game.addTime(1_000, 120_000, submission.submittedAt);
+  assert.equal(bonus.addedMs, 1_000);
+  assert.equal(bonus.state.remainingMs, 995);
+  assert.equal(bonus.state.expired, false);
+});
+
 test("accepts validated words, rejects invalid and duplicate words, and tracks used cells", () => {
   const validated: Array<{
     readonly word: string;

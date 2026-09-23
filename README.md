@@ -12,9 +12,11 @@ Zoggle has two modes, selected from the prominent control beside the title:
 - **Endless** removes every tile in an accepted word, drops the remaining tiles
   down their columns, and spawns weighted random letters at the top. A word
   created by each fall is scored and cleared automatically, producing visible
-  combo cascades. Cascades prefer the longest new word up to seven letters, use
-  stable quality tie-breakers, and stop after eight automatic clears so a
-  word-dense board always returns control to the player.
+  combo cascades. Each player-completed word also adds its point value to the
+  clock in seconds, up to two minutes remaining. Cascades prefer the longest
+  new word up to seven letters, use stable quality tie-breakers, and stop after
+  eight automatic clears so a word-dense board always returns control to the
+  player.
 
 Both modes share these rules:
 

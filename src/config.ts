@@ -4,6 +4,7 @@ import type { BoardDefinition } from "./types";
 
 export const BOARD_SIZE = 6;
 export const ROUND_SECONDS = 60;
+export const ENDLESS_MAX_TIME_SECONDS = 120;
 
 function boardFromGeneratedRecord(
   value: unknown,

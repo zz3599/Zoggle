@@ -5,6 +5,11 @@ export interface Coordinate {
 
 export type GameMode = "classic" | "endless";
 
+export interface TimeBonus {
+  readonly key: number;
+  readonly seconds: number;
+}
+
 export type LetterGrid = readonly (readonly string[])[];
 
 export interface BoardDefinition {

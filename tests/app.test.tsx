@@ -334,6 +334,8 @@ describe("App", () => {
     expect(document.querySelector(".word-preview")).toBeNull();
     expect(screen.getByText("cat", { selector: "li" })).toBeInTheDocument();
     expect(screen.getByText("1", { selector: "#score-value" })).toBeInTheDocument();
+    expect(screen.getByText("1:00", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(document.querySelector(".timer-bonus")).toBeNull();
     expect(first).toBeDisabled();
     expect(second).toBeDisabled();
     expect(third).toBeDisabled();
@@ -533,6 +535,12 @@ describe("App", () => {
       screen.getByText("CAT", { selector: "#current-word" }),
     ).toBeInTheDocument();
     expect(screen.getByText("+1 point · Gravity!")).toBeInTheDocument();
+    const firstTimeBonus = screen.getByText("+ 1", {
+      selector: ".timer-bonus",
+    });
+    const firstTimeAnnouncement = screen.getByText("1 second added", {
+      selector: ".visually-hidden",
+    });
     expect(endlessTileRandom).toHaveBeenCalledTimes(3);
     const dogCells = boardCells().slice(0, 3);
     expect(dogCells.map((cell) => cell.textContent)).toEqual(["D", "O", "G"]);
@@ -559,6 +567,13 @@ describe("App", () => {
     expect(screen.getByText("2", { selector: "#score-value" })).toBeInTheDocument();
     expect(screen.getByText("cat", { selector: "li" })).toBeInTheDocument();
     expect(screen.getByText("dog", { selector: "li" })).toBeInTheDocument();
+    expect(screen.getByText("1:02", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(screen.getByText("+ 1", { selector: ".timer-bonus" })).not.toBe(
+      firstTimeBonus,
+    );
+    expect(
+      screen.getByText("1 second added", { selector: ".visually-hidden" }),
+    ).not.toBe(firstTimeAnnouncement);
     expect(endlessTileRandom).toHaveBeenCalledTimes(6);
   });
 
@@ -598,6 +613,11 @@ describe("App", () => {
       screen.getByRole("button", { name: "D, row 3, column 1" }),
     ).toHaveAttribute("data-source-row", "1");
     expect(screen.getByText("1", { selector: "#score-value" })).toBeInTheDocument();
+    expect(screen.getByText("1:01", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(screen.getByText("+ 1", { selector: ".timer-bonus" })).toBeInTheDocument();
+    expect(
+      screen.getByText("1 second added", { selector: ".visually-hidden" }),
+    ).toBeInTheDocument();
     expect(boardCells()[0]).toBeDisabled();
 
     await act(async () => {
@@ -632,7 +652,9 @@ describe("App", () => {
     expect(
       screen.getByRole("group", { name: /cascade board/i }),
     ).toHaveAttribute("aria-busy", "false");
-    expect(screen.getByText("1:00", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(screen.getByText("1:01", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(document.querySelector(".timer-bonus")).toBeNull();
+    expect(screen.queryByText("1 second added")).toBeNull();
   });
 
   test("caps automatic cascades on a continuously matching board", async () => {
@@ -705,6 +727,44 @@ describe("App", () => {
 
     expect(screen.getByText("+2 points · Gravity!")).toBeInTheDocument();
     expect(screen.getByText("2", { selector: "#score-value" })).toBeInTheDocument();
+    expect(screen.getByText("1:02", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(screen.getByText("+ 2", { selector: ".timer-bonus" })).toBeInTheDocument();
+  });
+
+  test("caps Endless time bonuses at two minutes", async () => {
+    const words = ["abcdefghi", "lmnopurst"];
+    const refillLetters = [..."LURMPSNOT"];
+    const randomValues = refillLetters.map((letter) => {
+      const index = DEFAULT_LETTER_POOL.indexOf(letter);
+      if (index < 0) throw new Error(`Missing test letter ${letter}`);
+      return (index + 0.25) / DEFAULT_LETTER_POOL.length;
+    });
+    await renderReadyWithFakeTimers(new Set(words), {
+      boards: [{
+        id: "time-cap",
+        letters: [
+          [..."ABC"],
+          [..."FED"],
+          [..."GHI"],
+        ],
+      }],
+      endlessTileRandom: () => randomValues.shift() ?? 0,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Endless/ }));
+    const pathIndexes = [0, 1, 2, 5, 4, 3, 6, 7, 8];
+    traceCells(...pathIndexes.map((index) => boardCells()[index]!));
+
+    expect(screen.getByText("1:50", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(screen.getByText("+ 50", { selector: ".timer-bonus" })).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(GRAVITY_ANIMATION_MS);
+    });
+    traceCells(...pathIndexes.map((index) => boardCells()[index]!));
+
+    expect(screen.getByText("2:00", { selector: "#timer-value" })).toBeInTheDocument();
+    expect(screen.getByText("+ 10", { selector: ".timer-bonus" })).toBeInTheDocument();
   });
 
   test("rejects invalid gravity paths and replay cancels a pending cascade", async () => {

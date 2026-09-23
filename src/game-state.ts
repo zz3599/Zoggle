@@ -68,6 +68,12 @@ export interface SubmissionResult {
   readonly reason: string | null;
   readonly word: string;
   readonly points: number;
+  readonly submittedAt: number;
+  readonly state: RoundSnapshot;
+}
+
+export interface TimeBonusResult {
+  readonly addedMs: number;
   readonly state: RoundSnapshot;
 }
 
@@ -95,6 +101,7 @@ export class GameState {
   private readonly knownHighScores = new Map<string, number>();
   private boardId = "";
   private durationMs = DEFAULT_ROUND_DURATION_MS;
+  private remainingLimitMs = DEFAULT_ROUND_DURATION_MS;
   private startedAt = 0;
   private endsAt = 0;
   private pausedRemainingMs: number | null = null;
@@ -129,6 +136,7 @@ export class GameState {
   }: ResetRoundOptions = {}): RoundSnapshot {
     this.boardId = normalizeBoardId(boardId);
     this.durationMs = normalizeDuration(durationMs);
+    this.remainingLimitMs = this.durationMs;
     this.startedAt = readClock(this.now);
     this.endsAt = this.startedAt + this.durationMs;
     this.pausedRemainingMs = null;
@@ -234,12 +242,67 @@ export class GameState {
       reason: null,
       word: normalizedWord,
       points: awardedPoints,
+      submittedAt,
       state: this.snapshotAt(submittedAt),
     };
   }
 
   getSnapshot(): RoundSnapshot {
     return this.snapshotAt(readClock(this.now));
+  }
+
+  /**
+   * Add time without letting the remaining clock exceed its cap. Passing the
+   * submission timestamp keeps an accepted last-millisecond award atomic.
+   */
+  addTime(
+    additionalMs: number,
+    maximumRemainingMs: number,
+    awardedAt?: number,
+  ): TimeBonusResult {
+    const normalizedAdditionalMs = normalizeNonNegativeDuration(
+      additionalMs,
+      "additionalMs",
+    );
+    const normalizedMaximumRemainingMs = normalizeDuration(
+      maximumRemainingMs,
+      "maximumRemainingMs",
+    );
+    const observedAt = readClock(this.now);
+    const effectiveAwardedAt = awardedAt === undefined
+      ? observedAt
+      : normalizeClockValue(awardedAt, "awardedAt");
+    const remainingMs = this.remainingMsAt(effectiveAwardedAt);
+
+    if (remainingMs === 0 || normalizedAdditionalMs === 0) {
+      return {
+        addedMs: 0,
+        state: this.snapshotAt(observedAt),
+      };
+    }
+
+    const nextRemainingMs = Math.min(
+      normalizedMaximumRemainingMs,
+      remainingMs + normalizedAdditionalMs,
+    );
+    const addedMs = Math.max(0, nextRemainingMs - remainingMs);
+
+    if (addedMs > 0) {
+      this.remainingLimitMs = Math.max(
+        this.remainingLimitMs,
+        normalizedMaximumRemainingMs,
+      );
+      if (this.pausedRemainingMs === null) {
+        this.endsAt = effectiveAwardedAt + nextRemainingMs;
+      } else {
+        this.pausedRemainingMs = nextRemainingMs;
+      }
+    }
+
+    return {
+      addedMs,
+      state: this.snapshotAt(observedAt),
+    };
   }
 
   /** Freeze the round clock until resume is called. */
@@ -294,6 +357,7 @@ export class GameState {
       reason,
       word,
       points: 0,
+      submittedAt: at,
       state: this.snapshotAt(at),
     };
   }
@@ -323,7 +387,7 @@ export class GameState {
 
   private remainingMsAt(at: number): number {
     if (this.pausedRemainingMs !== null) return this.pausedRemainingMs;
-    return Math.min(this.durationMs, Math.max(0, this.endsAt - at));
+    return Math.min(this.remainingLimitMs, Math.max(0, this.endsAt - at));
   }
 
   private readHighScore(boardId: string): number {
@@ -425,13 +489,24 @@ function normalizeBoardId(boardId: unknown): string {
   return boardId.trim();
 }
 
-function normalizeDuration(durationMs: unknown): number {
+function normalizeDuration(durationMs: unknown, name = "durationMs"): number {
   if (
     typeof durationMs !== "number" ||
     !Number.isFinite(durationMs) ||
     durationMs <= 0
   ) {
-    throw new RangeError("durationMs must be a positive finite number");
+    throw new RangeError(`${name} must be a positive finite number`);
+  }
+  return durationMs;
+}
+
+function normalizeNonNegativeDuration(durationMs: unknown, name: string): number {
+  if (
+    typeof durationMs !== "number" ||
+    !Number.isFinite(durationMs) ||
+    durationMs < 0
+  ) {
+    throw new RangeError(`${name} must be a non-negative finite number`);
   }
   return durationMs;
 }
@@ -452,9 +527,14 @@ function optionalFunction<T extends Callable>(
 }
 
 function readClock(now: () => number): number {
-  const value = now();
-  if (!Number.isFinite(value)) throw new TypeError("now must return a finite number");
-  return value;
+  return normalizeClockValue(now());
+}
+
+function normalizeClockValue(value: unknown, name = "now"): number {
+  if (!Number.isFinite(value)) {
+    throw new TypeError(`${name} must be a finite number`);
+  }
+  return value as number;
 }
 
 function getDefaultStorage(): StorageAdapter | null {

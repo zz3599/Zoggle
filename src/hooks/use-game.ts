@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { BOARDS, ROUND_SECONDS } from "../config";
+import {
+  BOARDS,
+  ENDLESS_MAX_TIME_SECONDS,
+  ROUND_SECONDS,
+} from "../config";
 import {
   buildWordTrie,
   type WordTrie,
@@ -22,7 +26,12 @@ import {
   type ValidateWord,
 } from "../game-state";
 import { isEligibleWord, scoreWord, wordFromPath } from "../rules";
-import type { BoardDefinition, Coordinate, GameMode } from "../types";
+import type {
+  BoardDefinition,
+  Coordinate,
+  GameMode,
+  TimeBonus,
+} from "../types";
 
 export type StatusTone = "neutral" | "success" | "error";
 
@@ -44,6 +53,8 @@ interface GameSession {
   readonly sourceBoard: BoardDefinition;
   readonly roundKey: number;
   readonly status: StatusMessage;
+  readonly timeBonusKey: number;
+  readonly timeBonusSeconds: number;
 }
 
 interface FallingPhase {
@@ -79,6 +90,7 @@ export interface GameController {
   readonly roundKey: number;
   readonly snapshot: RoundSnapshot;
   readonly status: StatusMessage;
+  readonly timeBonus: TimeBonus | null;
   readonly usedCells: ReadonlySet<string>;
   readonly onPathChange: (path: readonly Coordinate[]) => void;
   readonly onSubmit: (path: readonly Coordinate[]) => void;
@@ -98,6 +110,7 @@ const EMPTY_STATUS: StatusMessage = {
 };
 
 const FEEDBACK_DURATION_MS = 3_000;
+const TIME_BONUS_DURATION_MS = 900;
 export const GRAVITY_ANIMATION_MS = 560;
 export const CASCADE_HIGHLIGHT_MS = 1_000;
 const cascadeTries = new WeakMap<ReadonlySet<string>, WordTrie>();
@@ -233,6 +246,8 @@ export function useGame(
       sourceBoard: board,
       roundKey: 0,
       status: READY_STATUS,
+      timeBonusKey: 0,
+      timeBonusSeconds: 0,
     };
   });
   const sessionRef = useRef(session);
@@ -304,6 +319,34 @@ export function useGame(
     session.feedbackKey,
     session.feedbackWord,
     session.status.tone,
+  ]);
+
+  useEffect(() => {
+    if (session.timeBonusSeconds <= 0) return;
+
+    const timeBonusKey = session.timeBonusKey;
+    const timerId = window.setTimeout(() => {
+      const current = sessionRef.current;
+      if (
+        current.game !== game ||
+        current.timeBonusKey !== timeBonusKey ||
+        current.timeBonusSeconds <= 0
+      ) {
+        return;
+      }
+
+      commitSession({
+        ...current,
+        timeBonusSeconds: 0,
+      });
+    }, TIME_BONUS_DURATION_MS);
+
+    return () => window.clearTimeout(timerId);
+  }, [
+    commitSession,
+    game,
+    session.timeBonusKey,
+    session.timeBonusSeconds,
   ]);
 
   useEffect(() => {
@@ -509,6 +552,8 @@ export function useGame(
       sourceBoard: board,
       roundKey: current.roundKey + 1,
       status: READY_STATUS,
+      timeBonusKey: current.timeBonusKey + 1,
+      timeBonusSeconds: 0,
     });
   }, [boards, commitSession, mode]);
 
@@ -559,10 +604,15 @@ export function useGame(
 
     const result = current.game.submitWord({ word, cells: submittedPath });
     if (result.accepted && mode === "endless") {
+      const timeBonus = current.game.addTime(
+        result.points * 1000,
+        ENDLESS_MAX_TIME_SECONDS * 1000,
+        result.submittedAt,
+      );
+      const snapshot = current.game.pause();
       const gravity = applyBoardGravity(currentBoard, submittedPath, {
         random: endlessTileRandom,
       });
-      const snapshot = current.game.pause();
       const cascadeKey = current.cascadeKey + 1;
       commitSession({
         ...current,
@@ -583,6 +633,8 @@ export function useGame(
         status: snapshot.expired
           ? roundCompleteStatus(snapshot.score)
           : submissionMessage(result, true),
+        timeBonusKey: current.timeBonusKey + 1,
+        timeBonusSeconds: timeBonus.addedMs / 1000,
       });
       return;
     }
@@ -620,6 +672,8 @@ export function useGame(
       sourceBoard: board,
       roundKey: current.roundKey + 1,
       status: READY_STATUS,
+      timeBonusKey: current.timeBonusKey + 1,
+      timeBonusSeconds: 0,
     });
   }, [commitSession, mode]);
   const playNextBoard = useCallback(() => resetRound(true), [resetRound]);
@@ -654,6 +708,12 @@ export function useGame(
     roundKey: session.roundKey,
     snapshot,
     status: session.status,
+    timeBonus: session.timeBonusSeconds > 0
+      ? {
+          key: session.timeBonusKey,
+          seconds: session.timeBonusSeconds,
+        }
+      : null,
     usedCells,
     onPathChange,
     onSubmit,
