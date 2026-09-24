@@ -26,6 +26,7 @@ import {
   type ValidateWord,
 } from "../game-state";
 import { isEligibleWord, scoreWord, wordFromPath } from "../rules";
+import { useHint } from "./use-hint";
 import type {
   BoardDefinition,
   Coordinate,
@@ -84,6 +85,7 @@ export interface GameController {
   readonly enabled: boolean;
   readonly gravityFalls: readonly GravityTileFall[];
   readonly gravityKey: number;
+  readonly hintPath: readonly Coordinate[];
   readonly isSelectionEnabled: () => boolean;
   readonly path: readonly Coordinate[];
   readonly resolving: boolean;
@@ -113,7 +115,7 @@ const FEEDBACK_DURATION_MS = 3_000;
 const TIME_BONUS_DURATION_MS = 900;
 export const GRAVITY_ANIMATION_MS = 560;
 export const CASCADE_HIGHLIGHT_MS = 1_000;
-const cascadeTries = new WeakMap<ReadonlySet<string>, WordTrie>();
+const wordTries = new WeakMap<ReadonlySet<string>, WordTrie>();
 
 function boardAt(
   boards: readonly BoardDefinition[],
@@ -204,12 +206,12 @@ function phaseDelay(durationMs: number): number {
     : durationMs;
 }
 
-function cascadeTrieFor(dictionary: ReadonlySet<string>): WordTrie {
-  const existing = cascadeTries.get(dictionary);
+function trieFor(dictionary: ReadonlySet<string>): WordTrie {
+  const existing = wordTries.get(dictionary);
   if (existing !== undefined) return existing;
 
   const trie = buildWordTrie(dictionary);
-  cascadeTries.set(dictionary, trie);
+  wordTries.set(dictionary, trie);
   return trie;
 }
 
@@ -219,10 +221,8 @@ export function useGame(
   mode: GameMode = "classic",
   endlessTileRandom: RandomSource = Math.random,
 ): GameController {
-  const cascadeTrie = useMemo<WordTrie | null>(
-    () => mode === "endless" ? cascadeTrieFor(dictionary) : null,
-    [dictionary, mode],
-  );
+  const wordTrie = useMemo(() => trieFor(dictionary), [dictionary]);
+  const cascadeTrie = mode === "endless" ? wordTrie : null;
   const [session, setSession] = useState<GameSession>(() => {
     const board = boardAt(boards, 0);
     const game = new GameState({
@@ -260,6 +260,16 @@ export function useGame(
   const { game } = session;
   const { paused } = session;
   const { endsAt, expired } = session.snapshot;
+  const {
+    path: suggestedHintPath,
+    resetCountdown: resetHintCountdown,
+  } = useHint({
+    active: !paused && !expired && session.cascadePhase === null,
+    blockedCells: mode === "classic" ? session.snapshot.usedCells : [],
+    board: session.board.letters,
+    remainingMs: session.snapshot.remainingMs,
+    trie: wordTrie,
+  });
 
   useEffect(() => {
     if (expired || paused) return;
@@ -538,6 +548,7 @@ export function useGame(
       durationMs: ROUND_SECONDS * 1000,
     });
     if (!pageHasFocus()) snapshot = current.game.pause();
+    resetHintCountdown(snapshot.remainingMs);
 
     commitSession({
       ...current,
@@ -555,7 +566,7 @@ export function useGame(
       timeBonusKey: current.timeBonusKey + 1,
       timeBonusSeconds: 0,
     });
-  }, [boards, commitSession, mode]);
+  }, [boards, commitSession, mode, resetHintCountdown]);
 
   const board = session.board;
   const pathWord = useMemo(() => {
@@ -610,6 +621,7 @@ export function useGame(
         result.submittedAt,
       );
       const snapshot = current.game.pause();
+      resetHintCountdown(snapshot.remainingMs);
       const gravity = applyBoardGravity(currentBoard, submittedPath, {
         random: endlessTileRandom,
       });
@@ -648,7 +660,8 @@ export function useGame(
         ? roundCompleteStatus(result.state.score)
         : submissionMessage(result),
     });
-  }, [commitSession, endlessTileRandom, mode]);
+    if (result.accepted) resetHintCountdown(result.state.remainingMs);
+  }, [commitSession, endlessTileRandom, mode, resetHintCountdown]);
 
   const playAgain = useCallback(() => resetRound(false), [resetRound]);
   const playBoard = useCallback((board: BoardDefinition) => {
@@ -659,6 +672,7 @@ export function useGame(
       durationMs: ROUND_SECONDS * 1000,
     });
     if (!pageHasFocus()) snapshot = current.game.pause();
+    resetHintCountdown(snapshot.remainingMs);
 
     commitSession({
       ...current,
@@ -675,7 +689,7 @@ export function useGame(
       timeBonusKey: current.timeBonusKey + 1,
       timeBonusSeconds: 0,
     });
-  }, [commitSession, mode]);
+  }, [commitSession, mode, resetHintCountdown]);
   const playNextBoard = useCallback(() => resetRound(true), [resetRound]);
   const isSelectionEnabled = useCallback(() => {
     const current = sessionRef.current;
@@ -694,6 +708,7 @@ export function useGame(
   const gravityFalls = session.cascadePhase?.kind === "falling"
     ? session.cascadePhase.falls
     : [];
+  const hintPath = path.length === 0 ? suggestedHintPath : [];
 
   return {
     board,
@@ -702,6 +717,7 @@ export function useGame(
     enabled: !snapshot.expired && session.cascadePhase === null,
     gravityFalls,
     gravityKey: session.cascadeKey,
+    hintPath,
     isSelectionEnabled,
     path,
     resolving: session.cascadePhase !== null,

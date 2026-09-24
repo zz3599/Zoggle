@@ -81,6 +81,7 @@ function GameScreen({
 }: GameScreenProps) {
   const board = game?.board ?? fallbackBoard;
   const boardLabel = board.label ?? `${board.id} board`;
+  const hintPath = game?.hintPath ?? EMPTY_PATH;
   const snapshot = game?.snapshot ?? null;
 
   return (
@@ -92,6 +93,11 @@ function GameScreen({
           <div className="board-heading">
             <h2 id="board-name">{boardLabel}</h2>
             <div className="board-feedback">
+              {hintPath.length > 0 && (
+                <p className="hint-message" role="status">
+                  Hint: follow the numbered flashing tiles in order.
+                </p>
+              )}
               {game?.currentWord && (
                 <output id="current-word" aria-label="Current word">
                   {game.currentWord.toUpperCase()}
@@ -114,6 +120,7 @@ function GameScreen({
             enabled={game?.enabled ?? false}
             gravityFalls={game?.gravityFalls ?? []}
             gravityKey={game?.gravityKey ?? 0}
+            hintPath={hintPath}
             isEnabled={game?.isSelectionEnabled ?? selectionDisabled}
             path={game?.path ?? EMPTY_PATH}
             resetKey={game?.roundKey ?? 0}

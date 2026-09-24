@@ -42,6 +42,11 @@ export interface TraceableWord {
   readonly pathMask: bigint;
 }
 
+export interface SolveBoardOptions {
+  /** Cells that cannot participate in a solution, as coordinates or `row,col`. */
+  readonly blockedCells?: Iterable<Coordinate | string>;
+}
+
 export interface BoardMetrics {
   /** Number of unique playable words on the board. */
   readonly wordCount: number;
@@ -328,16 +333,19 @@ function solveNormalizedBoard(
   board: NormalizedBoard,
   trie: WordTrie,
   collectWords: true,
+  blockedCellIndices?: ReadonlySet<number>,
 ): SolverResult;
 function solveNormalizedBoard(
   board: NormalizedBoard,
   trie: WordTrie,
   collectWords: false,
+  blockedCellIndices?: ReadonlySet<number>,
 ): SolverSummary;
 function solveNormalizedBoard(
   board: NormalizedBoard,
   trie: WordTrie,
   collectWords: boolean,
+  blockedCellIndices: ReadonlySet<number> = new Set(),
 ): SolverResult | SolverSummary {
   const { nodes } = requireTrie(trie);
   const cellCount = board.letters.length;
@@ -430,7 +438,12 @@ function solveNormalizedBoard(
       const cellNeighbors = neighbors[cellIndex];
       if (cellNeighbors !== undefined) {
         for (const neighborIndex of cellNeighbors) {
-          if (visited[neighborIndex] !== 0) continue;
+          if (
+            visited[neighborIndex] !== 0 ||
+            blockedCellIndices.has(neighborIndex)
+          ) {
+            continue;
+          }
 
           const letterCode = board.letters[neighborIndex];
           if (letterCode === undefined) continue;
@@ -452,6 +465,8 @@ function solveNormalizedBoard(
   }
 
   for (let cellIndex = 0; cellIndex < cellCount; cellIndex += 1) {
+    if (blockedCellIndices.has(cellIndex)) continue;
+
     const letterCode = board.letters[cellIndex];
     if (letterCode === undefined) continue;
     const childIndex = root.children.get(letterCode);
@@ -484,8 +499,55 @@ function solveNormalizedBoard(
 export function solveBoard(
   board: BoardInput,
   trie: WordTrie,
+  { blockedCells = [] }: SolveBoardOptions = {},
 ): readonly TraceableWord[] {
-  return solveNormalizedBoard(normalizeBoard(board), trie, true).words;
+  const normalizedBoard = normalizeBoard(board);
+  return solveNormalizedBoard(
+    normalizedBoard,
+    trie,
+    true,
+    blockedIndicesFromCells(normalizedBoard, blockedCells),
+  ).words;
+}
+
+function blockedIndicesFromCells(
+  board: NormalizedBoard,
+  cells: Iterable<Coordinate | string>,
+): ReadonlySet<number> {
+  const blockedCellIndices = new Set<number>();
+
+  for (const cell of cells) {
+    let row: number;
+    let col: number;
+
+    if (typeof cell === "string") {
+      const match = /^(\d+),(\d+)$/.exec(cell.trim());
+      if (match === null) {
+        throw new TypeError("Blocked cell strings must use the `row,col` format.");
+      }
+      row = Number(match[1]);
+      col = Number(match[2]);
+    } else {
+      row = cell?.row;
+      col = cell?.col;
+    }
+
+    if (!Number.isSafeInteger(row) || !Number.isSafeInteger(col)) {
+      throw new TypeError("Blocked cell coordinates must be integers.");
+    }
+    if (
+      row < 0 ||
+      row >= board.rowCount ||
+      col < 0 ||
+      col >= board.columnCount
+    ) {
+      throw new RangeError("Blocked cell coordinates must be within the board.");
+    }
+
+    blockedCellIndices.add(row * board.columnCount + col);
+  }
+
+  return blockedCellIndices;
 }
 
 function addMaskCellFrequencies(

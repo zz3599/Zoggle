@@ -10,6 +10,7 @@ interface BoardProps {
   readonly enabled: boolean;
   readonly gravityFalls: readonly GravityTileFall[];
   readonly gravityKey: number;
+  readonly hintPath: readonly Coordinate[];
   readonly isEnabled: () => boolean;
   readonly path: readonly Coordinate[];
   readonly resetKey: number;
@@ -39,6 +40,7 @@ export function Board({
   enabled,
   gravityFalls,
   gravityKey,
+  hintPath,
   isEnabled,
   path,
   resetKey,
@@ -49,6 +51,13 @@ export function Board({
 }: BoardProps) {
   const boardRef = useRef<HTMLDivElement>(null);
   const activeCells = useMemo(() => new Set(path.map(cellKey)), [path]);
+  const hintSteps = useMemo(
+    () => new Map(hintPath.map((coordinate, index) => [
+      cellKey(coordinate),
+      index + 1,
+    ])),
+    [hintPath],
+  );
   const fallsByDestination = useMemo(
     () => new Map(
       gravityFalls.map((fall) => [cellKey(fall.destination), fall]),
@@ -92,20 +101,30 @@ export function Board({
             const key = `${rowIndex},${colIndex}`;
             const used = usedCells.has(key);
             const active = activeCells.has(key);
+            const hintStep = hintSteps.get(key);
+            const hinted = hintStep !== undefined;
             const cascade = cascadeCells.has(key);
             const fall = fallsByDestination.get(key);
             const className = [
               "cell",
               used && "cell--used",
               active && "cell--active",
+              hinted && "cell--hint",
               fall && "cell--falling",
               fall?.spawned && "cell--spawned",
               cascade && "cell--cascade",
             ]
               .filter(Boolean)
               .join(" ");
-            const cellStyle = fall
-              ? { "--fall-offset": fallOffset(fall.fallRows) } as CSSProperties
+            const cellStyle = fall || hinted
+              ? {
+                  ...(fall && {
+                    "--fall-offset": fallOffset(fall.fallRows),
+                  }),
+                  ...(hinted && {
+                    "--hint-delay": `${(hintStep - 1) * 140}ms`,
+                  }),
+                } as CSSProperties
               : undefined;
             const animationKey = fall
               ? `gravity-${gravityKey}`
@@ -125,8 +144,14 @@ export function Board({
                   data-gravity={
                     fall ? (fall.spawned ? "spawned" : "falling") : undefined
                   }
+                  data-hint-step={hintStep}
                   data-source-row={fall?.sourceRow ?? undefined}
-                  aria-label={`${letter}, row ${rowIndex + 1}, column ${colIndex + 1}`}
+                  aria-label={
+                    `${letter}, row ${rowIndex + 1}, column ${colIndex + 1}` +
+                    (hinted
+                      ? `, hint step ${hintStep} of ${hintPath.length}`
+                      : "")
+                  }
                   disabled={!selectionEnabled || used}
                   style={cellStyle}
                 >

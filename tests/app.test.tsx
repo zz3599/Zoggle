@@ -17,6 +17,7 @@ import {
   CASCADE_HIGHLIGHT_MS,
   GRAVITY_ANIMATION_MS,
 } from "../src/hooks/use-game";
+import { HINT_DELAY_MS } from "../src/hooks/use-hint";
 import { DEFAULT_LETTER_POOL } from "../src/letter-pool";
 import type { BoardDefinition } from "../src/types";
 import { setElementAtPoint } from "./setup";
@@ -309,6 +310,125 @@ describe("App", () => {
     expect(t).not.toHaveClass("cell--active");
 
     fireEvent.pointerCancel(document, { pointerId: 11 });
+  });
+
+  test("shows a numbered word hint after exactly ten seconds without a word", async () => {
+    await renderReadyWithFakeTimers(new Set(["cat"]));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_DELAY_MS - 1);
+    });
+    expect(document.querySelector(".cell--hint")).toBeNull();
+    expect(
+      screen.queryByText("Hint: follow the numbered flashing tiles in order."),
+    ).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    const hintedCells = boardCells().filter((cell) =>
+      cell.classList.contains("cell--hint")
+    );
+    expect(hintedCells.map((cell) => cell.textContent)).toEqual(["C", "A", "T"]);
+    expect(hintedCells.map((cell) => cell.dataset.hintStep)).toEqual([
+      "1",
+      "2",
+      "3",
+    ]);
+    expect(hintedCells[0]).toHaveAccessibleName(
+      "C, row 1, column 1, hint step 1 of 3",
+    );
+    expect(
+      screen.getByText("Hint: follow the numbered flashing tiles in order."),
+    ).toBeInTheDocument();
+  });
+
+  test("clears and restarts the hint timer after an accepted word", async () => {
+    await renderReadyWithFakeTimers(new Set(["cat", "dog"]));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_DELAY_MS);
+    });
+    const firstHint = boardCells().filter((cell) =>
+      cell.classList.contains("cell--hint")
+    );
+    expect(firstHint.map((cell) => cell.textContent)).toEqual(["C", "A", "T"]);
+
+    traceCells(...firstHint);
+
+    expect(document.querySelector(".cell--hint")).toBeNull();
+    expect(
+      screen.queryByText("Hint: follow the numbered flashing tiles in order."),
+    ).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_DELAY_MS - 1);
+    });
+    expect(document.querySelector(".cell--hint")).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    const secondHint = boardCells().filter((cell) =>
+      cell.classList.contains("cell--hint")
+    );
+    expect(secondHint.map((cell) => cell.textContent)).toEqual(["D", "O", "G"]);
+    expect(secondHint.map((cell) => cell.dataset.hintStep)).toEqual([
+      "1",
+      "2",
+      "3",
+    ]);
+  });
+
+  test("does not restart the hint timer after a rejected short attempt", async () => {
+    await renderReadyWithFakeTimers(new Set(["cat"]));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_DELAY_MS - 1);
+    });
+    traceCells(...boardCells().slice(0, 2));
+
+    expect(screen.getByText("Words need at least three letters.")).toBeInTheDocument();
+    expect(document.querySelector(".cell--hint")).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(
+      boardCells()
+        .filter((cell) => cell.classList.contains("cell--hint"))
+        .map((cell) => cell.textContent),
+    ).toEqual(["C", "A", "T"]);
+    expect(
+      screen.getByText("Hint: follow the numbered flashing tiles in order."),
+    ).toBeInTheDocument();
+  });
+
+  test("counts only active round time toward the hint", async () => {
+    await renderReadyWithFakeTimers(new Set(["cat"]));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_DELAY_MS / 2);
+    });
+    fireEvent.blur(window);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_DELAY_MS * 2);
+    });
+    expect(document.querySelector(".cell--hint")).toBeNull();
+
+    fireEvent.focus(window);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_DELAY_MS / 2 - 1);
+    });
+    expect(document.querySelector(".cell--hint")).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(document.querySelectorAll(".cell--hint")).toHaveLength(3);
   });
 
   test("shows accepted word feedback in the board header for three seconds", async () => {

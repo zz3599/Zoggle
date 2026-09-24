@@ -90,6 +90,31 @@ test("solveBoard deduplicates words and retains the first row-major DFS path", (
   ]);
 });
 
+test("solveBoard finds an alternate path when the canonical path is blocked", () => {
+  const words = solveBoard(["AA", "AA"], buildWordTrie(["aaa"]), {
+    blockedCells: ["0,0"],
+  });
+
+  assert.deepEqual(words, [{
+    word: "aaa",
+    path: [
+      { row: 0, col: 1 },
+      { row: 1, col: 0 },
+      { row: 1, col: 1 },
+    ],
+    pathMask: 14n,
+  }]);
+});
+
+test("solveBoard returns no words when every route is blocked", () => {
+  assert.deepEqual(
+    solveBoard(["CAT"], buildWordTrie(["cat"]), {
+      blockedCells: [{ row: 0, col: 1 }],
+    }),
+    [],
+  );
+});
+
 test("analyzeBoard computes score, length, coverage, and disjoint-word metrics", () => {
   const board = ["ABCDEFGH"];
   const trie = buildWordTrie(["abc", "def", "abcdefgh"]);

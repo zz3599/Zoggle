@@ -41,6 +41,10 @@ Both modes share these rules:
       and releasing. A tile is added only while the pointer is inside its
       centered hit box, which spans 80% of the tile's width and height.
    7. Score updated after each valid word selected.
+   8. After 10 seconds of active play without a successful word, a valid
+      remaining path is highlighted with numbered, pulsing tiles. The hint
+      countdown resets after each accepted player word and pauses whenever the
+      round is paused or resolving an Endless gravity step.
 3. The user can play the current board again at any time. At timer expiration,
    they can also start a new board.
 
@@ -141,6 +145,8 @@ Use `npm run preview` to serve the production build locally.
   lifecycles.
 - `src/game-state.ts`, `src/rules.ts`, and `src/selection.ts` contain the typed,
   framework-independent game logic.
+- `src/hint.ts` and `src/hooks/use-hint.ts` own playable hint selection and the
+  active-play countdown, keeping hint state separate from the round controller.
 - `tests/` contains Vitest unit and React Testing Library integration tests.
 
 ## Manual playtesting
